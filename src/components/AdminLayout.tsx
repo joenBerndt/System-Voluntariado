@@ -1,24 +1,28 @@
+import { LayoutDashboard, Users, UserCircle, Megaphone, FolderOpen, MapPin, Info, User, FileText, UserCheck, LogOut, Home, Video, Activity } from 'lucide-react';
 import { useState } from 'react';
-import { Users, Megaphone, MapPin, Info, LogOut, LayoutDashboard, UserCheck, FileText, UserCircle, FolderOpen, User } from 'lucide-react';
 import { Dashboard } from './Dashboard';
 import { Volunteers } from './Volunteers';
 import { Convocatorias } from './Convocatorias';
+import { UnifiedProfile } from './UnifiedProfile';
+import { ProjectsAdmin } from './admin/ProjectsAdmin';
 import { AreasAdmin } from './admin/AreasAdmin';
 import { AboutAdmin } from './admin/AboutAdmin';
 import { ApplicationsAdmin } from './admin/ApplicationsAdmin';
+import { ContentManagement } from './ContentManagement';
 import { UsersAdmin } from './admin/UsersAdmin';
-import { ProjectsAdmin } from './admin/ProjectsAdmin';
-import { ProfileView } from './ProfileView';
+import { ActivityLog } from './admin/ActivityLog';
+import logoIIAP from 'figma:asset/30559607b1a3dc361e3c8d4f3f9460064ad9a131.png';
 
 interface AdminLayoutProps {
   onLogout: () => void;
   currentUser?: any;
   onUserUpdate?: (updatedUser: any) => void;
+  onBackToLanding?: () => void;
 }
 
-type Section = 'dashboard' | 'users' | 'volunteers' | 'convocatorias' | 'applications' | 'projects' | 'areas' | 'about' | 'profile';
+type Section = 'dashboard' | 'users' | 'volunteers' | 'convocatorias' | 'applications' | 'projects' | 'areas' | 'about' | 'profile' | 'content' | 'activity';
 
-export function AdminLayout({ onLogout, currentUser, onUserUpdate }: AdminLayoutProps) {
+export function AdminLayout({ onLogout, currentUser, onUserUpdate, onBackToLanding }: AdminLayoutProps) {
   const [currentSection, setCurrentSection] = useState<Section>('dashboard');
   const [user, setUser] = useState(currentUser);
   
@@ -33,66 +37,85 @@ export function AdminLayout({ onLogout, currentUser, onUserUpdate }: AdminLayout
   };
 
   // Menu items filtered based on role
-  const allMenuItems = [
-    { id: 'dashboard' as Section, label: 'Dashboard', icon: LayoutDashboard, allowedRoles: ['admin', 'admin_master'] },
-    { id: 'applications' as Section, label: 'Postulaciones', icon: FileText, allowedRoles: ['admin', 'admin_master'] },
-    { id: 'users' as Section, label: 'Usuarios', icon: UserCircle, allowedRoles: ['admin_master'] },
-    { id: 'volunteers' as Section, label: 'Voluntarios', icon: UserCheck, allowedRoles: ['admin', 'admin_master'] },
-    { id: 'projects' as Section, label: 'Proyectos', icon: FolderOpen, allowedRoles: ['admin', 'admin_master'] },
-    { id: 'convocatorias' as Section, label: 'Convocatorias', icon: Megaphone, allowedRoles: ['admin', 'admin_master'] },
-    { id: 'areas' as Section, label: 'Áreas', icon: MapPin, allowedRoles: ['admin_master'] },
-    { id: 'about' as Section, label: 'Nosotros', icon: Info, allowedRoles: ['admin_master'] },
-    { id: 'profile' as Section, label: 'Perfil', icon: User, allowedRoles: ['admin', 'admin_master'] },
+  const menuItems = [
+    { id: 'dashboard' as Section, label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'applications' as Section, label: 'Postulaciones', icon: FileText, adminOnly: false },
+    { id: 'volunteers' as Section, label: 'Voluntarios', icon: UserCheck, adminOnly: false },
+    { id: 'convocatorias' as Section, label: 'Convocatorias', icon: Megaphone, masterOnly: true },
+    { id: 'projects' as Section, label: 'Proyectos', icon: FolderOpen, masterOnly: true },
+    { id: 'content' as Section, label: 'Asignaciones', icon: Video },
+    { id: 'areas' as Section, label: 'Áreas', icon: MapPin, masterOnly: true },
+    { id: 'about' as Section, label: 'Nosotros', icon: Info, masterOnly: true },
+    { id: 'users' as Section, label: 'Usuarios', icon: User, masterOnly: true },
+    { id: 'profile' as Section, label: 'Perfil', icon: UserCircle },
+    { id: 'activity' as Section, label: 'Actividad', icon: Activity, masterOnly: true },
   ];
-
-  const menuItems = allMenuItems.filter(item => 
-    item.allowedRoles.includes(currentUser?.role || 'admin_master')
-  );
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-8 py-4">
+      <header className="bg-white border-b-2 border-emerald-100 px-8 py-4 shadow-md">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-lg">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-            <div>
+          <div className="flex items-center gap-4">
+            <img src={logoIIAP} alt="IIAP Logo" className="h-14 w-auto" />
+            <div className="border-l-2 border-emerald-600 pl-4">
               <h1 className="text-gray-900">Panel de Administración - IIAP</h1>
-              <p className="text-gray-500 text-sm">Sistema de Gestión de Voluntariado</p>
+              <p className="text-gray-600 text-sm">Sistema de Gestión de Voluntariado</p>
             </div>
           </div>
-          <button
-            onClick={onLogout}
-            className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Cerrar sesión</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {onBackToLanding && (
+              <button
+                onClick={onBackToLanding}
+                className="flex items-center gap-2 px-4 py-2 text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors font-medium border-2 border-emerald-200 hover:border-emerald-300"
+              >
+                <Home className="w-5 h-5" />
+                <span>Volver al Landing</span>
+              </button>
+            )}
+            <div className="text-right border-r-2 border-gray-200 pr-4">
+              <p className="text-gray-900 font-semibold">{currentUser?.name}</p>
+              <p className="text-gray-600 text-sm">
+                {currentUser?.role === 'admin_master' ? 'Admin Master' : 
+                 currentUser?.role === 'admin' ? 'Administrador' : 'Usuario'}
+              </p>
+            </div>
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium border-2 border-transparent hover:border-red-200"
+            >
+              <LogOut className="w-5 h-5" />
+              <span>Cerrar sesión</span>
+            </button>
+          </div>
         </div>
       </header>
 
       <div className="flex">
         {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-gray-200 min-h-[calc(100vh-73px)]">
+        <aside className="w-64 bg-white border-r-2 border-emerald-100 min-h-[calc(100vh-73px)] shadow-sm">
           <nav className="p-4 space-y-2">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setCurrentSection(item.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    currentSection === item.id
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                </button>
-              );
+              const isAllowed = !item.adminOnly || isAdmin || isAdminMaster;
+              const isMasterOnly = item.masterOnly && isAdminMaster;
+              if (isAllowed || isMasterOnly) {
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setCurrentSection(item.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
+                      currentSection === item.id
+                        ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg'
+                        : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              }
+              return null;
             })}
           </nav>
         </aside>
@@ -101,13 +124,15 @@ export function AdminLayout({ onLogout, currentUser, onUserUpdate }: AdminLayout
         <main className="flex-1 p-8">
           {currentSection === 'dashboard' && <Dashboard currentUser={currentUser} />}
           {currentSection === 'applications' && <ApplicationsAdmin isAdminJunior={isAdmin} />}
-          {currentSection === 'users' && <UsersAdmin />}
           {currentSection === 'volunteers' && <Volunteers isAdminJunior={isAdmin} />}
           {currentSection === 'projects' && <ProjectsAdmin />}
           {currentSection === 'convocatorias' && <Convocatorias />}
           {currentSection === 'areas' && <AreasAdmin />}
           {currentSection === 'about' && <AboutAdmin />}
-          {currentSection === 'profile' && user && <ProfileView user={user} onUpdate={handleProfileUpdate} />}
+          {currentSection === 'users' && <UsersAdmin currentUser={currentUser} />}
+          {currentSection === 'profile' && user && <UnifiedProfile user={user} onUpdate={handleProfileUpdate} />}
+          {currentSection === 'content' && <ContentManagement currentUser={currentUser} />}
+          {currentSection === 'activity' && <ActivityLog />}
         </main>
       </div>
     </div>

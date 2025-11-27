@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft, LogIn } from 'lucide-react';
+import { LoadingOverlay } from './LoadingOverlay';
+import { useNotifications } from '../contexts/NotificationContext';
 
 interface LoginPageProps {
   onLogin: (email: string, password: string) => Promise<void>;
@@ -13,6 +15,8 @@ export function LoginPage({ onLogin, onBack, onRegister, error }: LoginPageProps
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState(error || '');
+  
+  const { showError, showSuccess } = useNotifications();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,27 +25,32 @@ export function LoginPage({ onLogin, onBack, onRegister, error }: LoginPageProps
 
     try {
       await onLogin(email, password);
+      showSuccess('¡Bienvenido!', 'Has iniciado sesión exitosamente');
     } catch (err) {
-      setLoginError(err instanceof Error ? err.message : 'Error al iniciar sesión');
+      const errorMsg = err instanceof Error ? err.message : 'Error al iniciar sesión';
+      setLoginError(errorMsg);
+      showError('Error de autenticación', errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
+    <>
+      {loading && <LoadingOverlay message="Iniciando sesión..." subtitle="Verificando tus credenciales" />}
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors"
+          className="flex items-center gap-2 text-gray-700 hover:text-emerald-700 mb-6 transition-colors font-medium"
         >
           <ArrowLeft className="w-5 h-5" />
           Volver al inicio
         </button>
 
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 border-2 border-emerald-100">
           <div className="text-center mb-8">
-            <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
               <LogIn className="w-8 h-8 text-white" />
             </div>
             <h2 className="text-gray-900 mb-2">Iniciar Sesión</h2>
@@ -82,7 +91,7 @@ export function LoginPage({ onLogin, onBack, onRegister, error }: LoginPageProps
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 text-white py-3 rounded-lg hover:from-emerald-700 hover:to-emerald-800 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg font-medium"
             >
               {loading ? (
                 'Iniciando sesión...'
@@ -100,7 +109,7 @@ export function LoginPage({ onLogin, onBack, onRegister, error }: LoginPageProps
               ¿No tienes cuenta?{' '}
               <button
                 onClick={onRegister}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                className="text-emerald-700 hover:text-emerald-800 font-semibold"
               >
                 Regístrate aquí
               </button>
@@ -108,8 +117,8 @@ export function LoginPage({ onLogin, onBack, onRegister, error }: LoginPageProps
           </div>
 
           <div className="mt-6 pt-6 border-t border-gray-200">
-            <div className="bg-blue-50 p-3 rounded-lg text-sm text-gray-700">
-              <p className="font-medium mb-1">💡 Credenciales de prueba:</p>
+            <div className="bg-emerald-50 p-3 rounded-lg text-sm text-gray-700 border-2 border-emerald-200">
+              <p className="font-semibold mb-1 text-emerald-800">💡 Credenciales de prueba:</p>
               <p className="text-xs">
                 <span className="font-medium">Admin:</span> admin@iiap.org / admin123
               </p>
@@ -118,5 +127,6 @@ export function LoginPage({ onLogin, onBack, onRegister, error }: LoginPageProps
         </div>
       </div>
     </div>
+    </>
   );
 }

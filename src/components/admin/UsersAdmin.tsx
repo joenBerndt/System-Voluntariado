@@ -1,50 +1,281 @@
 import { useState } from 'react';
-import { Search, Mail, Phone, Calendar, User, Shield, UserCheck, Trash2, AlertTriangle, ArrowUp, Plus, X, ArrowDown } from 'lucide-react';
-import { useApi, apiDelete, apiPut, apiPost } from '../../hooks/useApi';
+import { Search, UserCircle, UserCheck, Crown, Users as UsersIcon, Shield, ChevronUp, ChevronDown, Trash2, Mail, Phone, MapPin, AlertTriangle, X, FolderOpen, Megaphone } from 'lucide-react';
+import { useApi, apiPut, apiDelete } from '../../hooks/useApi';
+import { LoadingSpinner } from '../LoadingOverlay';
+import { useNotifications } from '../../contexts/NotificationContext';
 
-export function UsersAdmin() {
+interface UsersAdminProps {
+  currentUser?: any;
+}
+
+export function UsersAdmin({ currentUser }: UsersAdminProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState<'all' | 'user' | 'volunteer' | 'admin' | 'admin_master'>('all');
-  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<any>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newUser, setNewUser] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    area: '',
-    skills: '',
-    password: '',
-  });
+  const [filterRole, setFilterRole] = useState<string>('all');
+  const [showAssignmentsModal, setShowAssignmentsModal] = useState(false);
+  const [assignmentsData, setAssignmentsData] = useState<{
+    user: any;
+    projects: any[];
+    convocatorias: any[];
+    action: 'demote' | 'delete';
+    newRole?: string;
+  } | null>(null);
+  
+  const { showSuccess, showError, showWarning, showLoading, hideNotification } = useNotifications();
+  
   const { data: usersData, loading, refetch } = useApi<any[]>('/users');
-
-  // Get current logged admin email from localStorage
-  const currentAdminEmail = localStorage.getItem('iiap_volunteer_email');
-
+  const { data: projectsData, refetch: refetchProjects } = useApi<any[]>('/projects');
+  const { data: convocatoriasData, refetch: refetchConvocatorias } = useApi<any[]>('/convocatorias');
+  
   const users = usersData || [];
+  const projects = projectsData || [];
+  const convocatorias = convocatoriasData || [];
 
   const filteredUsers = users.filter((user) => {
-    const matchesSearch =
+    const matchesSearch = 
       user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.area?.toLowerCase().includes(searchTerm.toLowerCase());
-
+    
     const matchesRole = filterRole === 'all' || user.role === filterRole;
-
+    
     return matchesSearch && matchesRole;
   });
 
-  // Count users by role
-  const userCount = users.filter(u => u.role === 'user').length;
-  const volunteerCount = users.filter(u => u.role === 'volunteer').length;
-  const adminCount = users.filter(u => u.role === 'admin').length;
-  const adminMasterCount = users.filter(u => u.role === 'admin_master').length;
+  const handlePromote = async (userId: string, currentRole: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas promover a este usuario?')) return;
+
+    let newRole = currentRole;
+    
+    // Promotion hierarchy: user → volunteer → admin → admin_master
+    if (currentRole === 'user') newRole = 'volunteer';
+    else if (currentRole === 'volunteer') newRole = 'admin';
+    else if (currentRole === 'admin') newRole = 'admin_master';
+
+    const loadingId = showLoading('Promoviendo usuario...', 'Actualizando rol en el sistema');
+
+    try {
+      const user = users.find(u => u.id === userId);
+      if (!user) {
+        hideNotification(loadingId);
+        showError('Error', 'Usuario no encontrado');
+        return;
+      }
+      await apiPut(`/users/${userId}/role`, { role: newRole });
+      hideNotification(loadingId);
+      showSuccess(
+        '¡Usuario promovido!',
+        `${user.name} ahora es ${newRole === 'volunteer' ? 'Voluntario' : newRole === 'admin' ? 'Administrador' : 'Administrador Master'}`
+      );
+      refetch();
+    } catch (err) {
+      console.error('Error promoting user:', err);
+      hideNotification(loadingId);
+      showError('Error al promover', err instanceof Error ? err.message : 'Error desconocido');
+    }
+  };
+
+  const handleDemote = async (userId: string, currentRole: string) => {
+    let newRole = currentRole;
+    
+    // Demotion hierarchy: admin_master → admin → volunteer → user
+    if (currentRole === 'admin_master') newRole = 'admin';
+    else if (currentRole === 'admin') newRole = 'volunteer';
+    else if (currentRole === 'volunteer') newRole = 'user';
+    else {
+      showWarning('Acción no permitida', 'Este usuario ya tiene el rol mínimo');
+      return;
+    }
+
+    // Check if user has assigned projects or convocatorias
+    const user = users.find(u => u.id === userId);
+    const userProjects = projects.filter(p => 
+      p.managers && Array.isArray(p.managers) && p.managers.includes(userId)
+    );
+    const userConvocatorias = convocatorias.filter(c => c.responsable === user?.email);
+
+    if (userProjects.length > 0 || userConvocatorias.length > 0) {
+      // Show modal with assignments
+      setAssignmentsData({
+        user,
+        projects: userProjects,
+        convocatorias: userConvocatorias,
+        action: 'demote',
+        newRole
+      });
+      setShowAssignmentsModal(true);
+    } else {
+      // No assignments, proceed with demotion
+      if (!window.confirm('¿Estás seguro de que deseas degradar a este usuario?')) return;
+      
+      const loadingId = showLoading('Degradando usuario...', 'Actualizando rol en el sistema');
+      
+      try {
+        await apiPut(`/users/${userId}/role`, { role: newRole });
+        hideNotification(loadingId);
+        showSuccess(
+          'Usuario degradado',
+          `El rol ha sido actualizado a ${newRole === 'user' ? 'Usuario' : newRole === 'volunteer' ? 'Voluntario' : 'Administrador'}`
+        );
+        refetch();
+      } catch (err) {
+        console.error('Error demoting user:', err);
+        hideNotification(loadingId);
+        showError('Error al degradar', 'No se pudo actualizar el rol del usuario');
+      }
+    }
+  };
+
+  const handleDelete = async (userId: string) => {
+    // Prevent deleting self
+    if (userId === currentUser?.id) {
+      showError('Acción no permitida', 'No puedes eliminar tu propia cuenta');
+      return;
+    }
+
+    // Check if user has assigned projects or convocatorias
+    const user = users.find(u => u.id === userId);
+    const userProjects = projects.filter(p => 
+      p.managers && Array.isArray(p.managers) && p.managers.includes(userId)
+    );
+    const userConvocatorias = convocatorias.filter(c => c.responsable === user?.email);
+
+    if (userProjects.length > 0 || userConvocatorias.length > 0) {
+      // Show modal with assignments
+      setAssignmentsData({
+        user,
+        projects: userProjects,
+        convocatorias: userConvocatorias,
+        action: 'delete'
+      });
+      setShowAssignmentsModal(true);
+    } else {
+      // No assignments, proceed with deletion
+      if (!window.confirm('¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.')) return;
+
+      const loadingId = showLoading('Eliminando usuario...', 'Removiendo datos del sistema');
+
+      try {
+        await apiDelete(`/users/${userId}`);
+        hideNotification(loadingId);
+        showSuccess('Usuario eliminado', 'El usuario ha sido eliminado del sistema exitosamente');
+        refetch();
+      } catch (err) {
+        console.error('Error deleting user:', err);
+        hideNotification(loadingId);
+        showError('Error al eliminar', 'No se pudo eliminar el usuario');
+      }
+    }
+  };
+
+  const handleRemoveAndProceed = async () => {
+    if (!assignmentsData) return;
+
+    const { user, projects: userProjects, convocatorias: userConvocatorias, action, newRole } = assignmentsData;
+
+    if (!user) {
+      showError('Error', 'Usuario no encontrado');
+      setShowAssignmentsModal(false);
+      setAssignmentsData(null);
+      return;
+    }
+
+    const loadingId = showLoading(
+      'Procesando cambios...',
+      'Removiendo asignaciones y actualizando usuario'
+    );
+
+    try {
+      // Remove user from all projects (filter out user.id from managers array)
+      for (const project of userProjects) {
+        const updatedManagers = (project.managers || []).filter((managerId: string) => managerId !== user.id);
+        await apiPut(`/projects/${project.id}`, { ...project, managers: updatedManagers });
+      }
+
+      // Remove user from all convocatorias
+      for (const convocatoria of userConvocatorias) {
+        await apiPut(`/convocatorias/${convocatoria.id}`, { ...convocatoria, responsable: null });
+      }
+
+      // Refresh projects and convocatorias
+      await refetchProjects();
+      await refetchConvocatorias();
+
+      // Now proceed with the action
+      if (action === 'demote') {
+        await apiPut(`/users/${user.id}/role`, { role: newRole });
+        hideNotification(loadingId);
+        showSuccess(
+          'Operación completada',
+          'Usuario removido de sus asignaciones y degradado exitosamente'
+        );
+      } else if (action === 'delete') {
+        await apiDelete(`/users/${user.id}`);
+        hideNotification(loadingId);
+        showSuccess(
+          'Usuario eliminado',
+          'Usuario removido de sus asignaciones y eliminado del sistema'
+        );
+      }
+
+      refetch();
+      setShowAssignmentsModal(false);
+      setAssignmentsData(null);
+    } catch (err) {
+      console.error('Error removing assignments:', err);
+      hideNotification(loadingId);
+      showError('Error al procesar', 'No se pudieron remover las asignaciones del usuario');
+    }
+  };
+
+  const getRoleInfo = (role: string) => {
+    switch (role) {
+      case 'admin_master':
+        return {
+          label: 'Admin Master',
+          icon: Crown,
+          color: 'from-purple-600 to-purple-700',
+          bgColor: 'bg-gradient-to-br from-purple-50 to-purple-100',
+          borderColor: 'border-purple-300',
+          textColor: 'text-purple-900',
+          badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
+        };
+      case 'admin':
+        return {
+          label: 'Administrador',
+          icon: Shield,
+          color: 'from-teal-600 to-teal-700',
+          bgColor: 'bg-gradient-to-br from-teal-50 to-teal-100',
+          borderColor: 'border-teal-300',
+          textColor: 'text-teal-900',
+          badgeColor: 'bg-teal-100 text-teal-800 border-teal-200',
+        };
+      case 'volunteer':
+        return {
+          label: 'Voluntario',
+          icon: UserCheck,
+          color: 'from-emerald-600 to-emerald-700',
+          bgColor: 'bg-gradient-to-br from-emerald-50 to-emerald-100',
+          borderColor: 'border-emerald-300',
+          textColor: 'text-emerald-900',
+          badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        };
+      default:
+        return {
+          label: 'Usuario',
+          icon: UserCircle,
+          color: 'from-gray-600 to-gray-700',
+          bgColor: 'bg-gradient-to-br from-gray-50 to-gray-100',
+          borderColor: 'border-gray-300',
+          textColor: 'text-gray-900',
+          badgeColor: 'bg-gray-100 text-gray-800 border-gray-200',
+        };
+    }
+  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-gray-500">Cargando usuarios...</div>
+        <LoadingSpinner size="large" />
       </div>
     );
   }
@@ -52,34 +283,18 @@ export function UsersAdmin() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-gray-900">Gestión de Usuarios</h2>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Agregar Usuario
-          </button>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full">
-              {userCount} Usuarios
-            </span>
-            <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full">
-              {volunteerCount} Voluntarios
-            </span>
-            <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full">
-              {adminCount} Admins
-            </span>
-            <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full">
-              {adminMasterCount} Admins Master
-            </span>
-          </div>
+        <div>
+          <h2 className="text-gray-900">Gestión de Usuarios</h2>
+          <p className="text-gray-600">Administra roles y permisos de todos los usuarios del sistema</p>
+        </div>
+        <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-lg">
+          <UsersIcon className="w-5 h-5 text-purple-700" />
+          <span className="font-bold text-purple-900">{users.length} Usuarios</span>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200">
+      <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -88,435 +303,303 @@ export function UsersAdmin() {
               placeholder="Buscar por nombre, email o área..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
           
-          <div className="flex gap-2">
-            {['all', 'user', 'volunteer', 'admin', 'admin_master'].map((role) => (
-              <button
-                key={role}
-                onClick={() => setFilterRole(role as any)}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  filterRole === role
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {role === 'all' ? 'Todos' : role === 'user' ? 'Usuarios' : role === 'volunteer' ? 'Voluntarios' : role === 'admin' ? 'Admin' : 'Admin Master'}
-              </button>
-            ))}
+          <select
+            value={filterRole}
+            onChange={(e) => setFilterRole(e.target.value)}
+            className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+          >
+            <option value="all">Todos los roles</option>
+            <option value="user">Usuarios</option>
+            <option value="volunteer">Voluntarios</option>
+            <option value="admin">Administradores</option>
+            <option value="admin_master">Admin Master</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Role Hierarchy Info */}
+      <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <div className="bg-amber-100 p-2 rounded-lg">
+            <Shield className="w-5 h-5 text-amber-700" />
+          </div>
+          <div>
+            <h4 className="text-amber-900 font-bold mb-1">Jerarquía de Roles</h4>
+            <p className="text-amber-800 text-sm mb-2">
+              Los usuarios pueden ser promovidos o degradados siguiendo esta jerarquía:
+            </p>
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <span className="px-3 py-1 bg-gray-100 text-gray-800 border border-gray-200 rounded-lg">Usuario</span>
+              <span className="text-amber-600">→</span>
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg">Voluntario</span>
+              <span className="text-amber-600">→</span>
+              <span className="px-3 py-1 bg-teal-100 text-teal-800 border border-teal-200 rounded-lg">Admin</span>
+              <span className="text-amber-600">→</span>
+              <span className="px-3 py-1 bg-purple-100 text-purple-800 border border-purple-200 rounded-lg">Admin Master</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Users List */}
       {filteredUsers.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredUsers.map((user) => {
-            const RoleIcon = getRoleIcon(user.role);
-            
+            const roleInfo = getRoleInfo(user.role);
+            const RoleIcon = roleInfo.icon;
+            const isCurrentUser = user.id === currentUser?.id;
+
             return (
               <div
                 key={user.id}
-                className="bg-white p-6 rounded-xl border-2 border-gray-200 hover:border-blue-300 transition-all"
+                className={`${roleInfo.bgColor} p-6 rounded-xl border-2 ${roleInfo.borderColor} shadow-md hover:shadow-lg transition-all ${
+                  isCurrentUser ? 'ring-4 ring-amber-300' : ''
+                }`}
               >
+                {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${getRoleColor(user.role)}`}>
-                      <RoleIcon className="w-5 h-5" />
+                    <div className={`w-12 h-12 bg-gradient-to-br ${roleInfo.color} rounded-full flex items-center justify-center shadow-lg`}>
+                      <span className="text-white font-bold text-lg">{user.name?.charAt(0).toUpperCase()}</span>
                     </div>
                     <div>
-                      <h4 className="text-gray-900">{user.name}</h4>
-                      <span className={`text-xs px-2 py-1 rounded-full ${getRoleColor(user.role)}`}>
-                        {getRoleText(user.role)}
+                      <h4 className={`${roleInfo.textColor} font-bold`}>{user.name}</h4>
+                      <span className={`text-xs px-2 py-1 rounded-full border font-semibold ${roleInfo.badgeColor}`}>
+                        {roleInfo.label}
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      setDeletingUserId(user.id);
-                      setUserToDelete(user);
-                      setShowDeleteModal(true);
-                    }}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
+                  {isCurrentUser && (
+                    <span className="px-2 py-1 bg-amber-200 text-amber-900 text-xs rounded-full font-bold border border-amber-300">
+                      TÚ
+                    </span>
+                  )}
                 </div>
 
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Mail className="w-4 h-4 text-blue-600" />
-                    <span className="truncate">{user.email}</span>
+                {/* User Info */}
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center gap-2 text-gray-700">
+                    <Mail className="w-4 h-4 text-emerald-600" />
+                    <span className="text-sm truncate">{user.email}</span>
                   </div>
                   {user.phone && (
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Phone className="w-4 h-4 text-blue-600" />
-                      <span>{user.phone}</span>
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <Phone className="w-4 h-4 text-teal-600" />
+                      <span className="text-sm">{user.phone}</span>
                     </div>
                   )}
                   {user.area && (
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <span className="w-4 h-4 text-blue-600 flex items-center justify-center">🎯</span>
-                      <span>{user.area}</span>
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <MapPin className="w-4 h-4 text-purple-600" />
+                      <span className="text-sm">{user.area}</span>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Calendar className="w-4 h-4 text-blue-600" />
-                    <span>{new Date(user.registeredDate).toLocaleDateString('es-ES')}</span>
-                  </div>
                 </div>
 
-                {user.skills && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Habilidades:</span> {user.skills}
-                    </p>
-                  </div>
-                )}
-                
-                {/* Role Actions */}
-                <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
-                  {/* Can't edit yourself */}
-                  {user.email === currentAdminEmail ? (
-                    <div className="text-center py-2 px-3 bg-blue-50 text-blue-700 rounded-lg text-sm">
-                      🔒 No puedes editar tu propio rol
-                    </div>
-                  ) : (
-                    <>
-                      {/* User Role - Can promote to Volunteer */}
-                      {user.role === 'user' && (
-                        <button
-                          onClick={async () => {
-                            if (confirm(`¿Promover a ${user.name} a Voluntario?`)) {
-                              try {
-                                await apiPut(`/users/${user.id}/role`, { role: 'volunteer' });
-                                alert('Usuario promovido a Voluntario exitosamente');
-                                refetch();
-                              } catch (err) {
-                                alert('Error al promover usuario');
-                              }
-                            }
-                          }}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg transition-colors text-sm"
-                        >
-                          <ArrowUp className="w-4 h-4" />
-                          Promover a Voluntario
-                        </button>
-                      )}
-                      
-                      {/* Volunteer Role - Can promote to Admin or degrade to User */}
-                      {user.role === 'volunteer' && (
-                        <>
-                          <button
-                            onClick={async () => {
-                              if (confirm(`¿Promover a ${user.name} a Admin?`)) {
-                                try {
-                                  await apiPut(`/users/${user.id}/role`, { role: 'admin' });
-                                  alert('Voluntario promovido a Admin exitosamente');
-                                  refetch();
-                                } catch (err) {
-                                  alert('Error al promover voluntario');
-                                }
-                              }
-                            }}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg transition-colors text-sm"
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                            Promover a Admin
-                          </button>
-                          <button
-                            onClick={async () => {
-                              if (confirm(`¿Degradar a ${user.name} a Usuario?`)) {
-                                try {
-                                  await apiPut(`/users/${user.id}/role`, { role: 'user' });
-                                  alert('Voluntario degradado a Usuario exitosamente');
-                                  refetch();
-                                } catch (err) {
-                                  alert('Error al degradar voluntario');
-                                }
-                              }
-                            }}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-                          >
-                            <ArrowDown className="w-4 h-4" />
-                            Degradar a Usuario
-                          </button>
-                        </>
-                      )}
-                      
-                      {/* Admin Role - Can promote to Admin Master or degrade to Volunteer */}
-                      {user.role === 'admin' && (
-                        <>
-                          <button
-                            onClick={async () => {
-                              if (confirm(`¿Promover a ${user.name} a Admin Master?`)) {
-                                try {
-                                  await apiPut(`/users/${user.id}/role`, { role: 'admin_master' });
-                                  alert('Admin promovido a Admin Master exitosamente');
-                                  refetch();
-                                } catch (err) {
-                                  alert('Error al promover admin');
-                                }
-                              }
-                            }}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-orange-50 text-orange-700 hover:bg-orange-100 rounded-lg transition-colors text-sm"
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                            Promover a Admin Master
-                          </button>
-                          <button
-                            onClick={async () => {
-                              if (confirm(`¿Degradar a ${user.name} a Voluntario?`)) {
-                                try {
-                                  await apiPut(`/users/${user.id}/role`, { role: 'volunteer' });
-                                  alert('Admin degradado a Voluntario exitosamente');
-                                  refetch();
-                                } catch (err) {
-                                  alert('Error al degradar admin');
-                                }
-                              }
-                            }}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-                          >
-                            <ArrowDown className="w-4 h-4" />
-                            Degradar a Voluntario
-                          </button>
-                        </>
-                      )}
-                      
-                      {/* Admin Master Role - Can only degrade to Admin */}
-                      {user.role === 'admin_master' && (
-                        <button
-                          onClick={async () => {
-                            if (confirm(`¿Degradar a ${user.name} a Admin?`)) {
-                              try {
-                                await apiPut(`/users/${user.id}/role`, { role: 'admin' });
-                                alert('Admin Master degradado a Admin exitosamente');
-                                refetch();
-                              } catch (err) {
-                                alert('Error al degradar admin master');
-                              }
-                            }
-                          }}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-                        >
-                          <ArrowDown className="w-4 h-4" />
-                          Degradar a Admin
-                        </button>
-                      )}
-                    </>
-                  )}
+                {/* Role Icon */}
+                <div className="mb-4 p-3 bg-white/50 rounded-lg border border-white flex items-center justify-center">
+                  <RoleIcon className={`w-8 h-8 ${roleInfo.textColor}`} />
                 </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-4 border-t-2 border-white">
+                  <button
+                    onClick={() => handlePromote(user.id, user.role)}
+                    disabled={user.role === 'admin_master' || isCurrentUser}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
+                    title="Promover usuario"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                    <span className="text-xs">Promover</span>
+                  </button>
+                  <button
+                    onClick={() => handleDemote(user.id, user.role)}
+                    disabled={user.role === 'user' || isCurrentUser}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
+                    title="Degradar usuario"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                    <span className="text-xs">Degradar</span>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(user.id)}
+                    disabled={isCurrentUser}
+                    className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    title="Eliminar usuario"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {isCurrentUser && (
+                  <p className="mt-3 text-xs text-amber-800 text-center font-semibold">
+                    No puedes modificar tu propia cuenta
+                  </p>
+                )}
               </div>
             );
           })}
         </div>
       ) : (
-        <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-          <User className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+        <div className="text-center py-12 bg-white rounded-xl border-2 border-gray-200 shadow-sm">
+          <UsersIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-600">
             {searchTerm || filterRole !== 'all'
               ? 'No se encontraron usuarios con esos filtros'
-              : 'No hay usuarios registrados aún'}
+              : 'No hay usuarios registrados'}
           </p>
         </div>
       )}
 
-      {/* Delete Modal */}
-      {showDeleteModal && userToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-red-100 rounded-full">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
-              </div>
-              <h3 className="text-gray-900">Confirmar Eliminación</h3>
-            </div>
-
-            <div className="mb-6 space-y-2">
-              <p className="text-gray-700">
-                ¿Estás seguro de que deseas eliminar al usuario <strong>{userToDelete.name}</strong>?
-              </p>
-              <p className="text-sm text-gray-600">
-                <strong>Email:</strong> {userToDelete.email}
-              </p>
-              <p className="text-sm text-gray-600">
-                <strong>Rol:</strong> {getRoleText(userToDelete.role)}
-              </p>
-              
-              {userToDelete.role === 'admin' || userToDelete.role === 'admin_master' ? (
-                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-700">
-                    <strong>⚠️ No se puede eliminar cuentas de administrador</strong>
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                  <p className="text-sm text-orange-700">
-                    <strong>Advertencia:</strong> Esta acción eliminará:
-                  </p>
-                  <ul className="text-sm text-orange-700 list-disc list-inside mt-2">
-                    <li>La cuenta del usuario</li>
-                    <li>Todas sus postulaciones</li>
-                    <li>Su registro de voluntario (si existe)</li>
-                  </ul>
-                  <p className="text-sm text-orange-700 mt-2">
-                    Esta acción no se puede deshacer.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setUserToDelete(null);
-                  setDeletingUserId(null);
-                }}
-                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Cancelar
-              </button>
-              {userToDelete.role !== 'admin' && userToDelete.role !== 'admin_master' && (
-                <button
-                  onClick={async () => {
-                    try {
-                      await apiDelete(`/users/${deletingUserId}`);
-                      alert(`Usuario ${userToDelete.name} eliminado exitosamente`);
-                      refetch();
-                      setShowDeleteModal(false);
-                      setUserToDelete(null);
-                      setDeletingUserId(null);
-                    } catch (err) {
-                      const errorMessage = err instanceof Error ? err.message : 'Error al eliminar usuario';
-                      alert(errorMessage);
-                    }
-                  }}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  Eliminar Usuario
-                </button>
-              )}
-            </div>
-          </div>
+      {/* Stats Footer */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-lg p-4 text-center">
+          <UserCircle className="w-6 h-6 text-gray-600 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-gray-900">{users.filter(u => u.role === 'user').length}</p>
+          <p className="text-sm text-gray-700 font-medium">Usuarios</p>
         </div>
-      )}
+        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-200 rounded-lg p-4 text-center">
+          <UserCheck className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-emerald-900">{users.filter(u => u.role === 'volunteer').length}</p>
+          <p className="text-sm text-emerald-700 font-medium">Voluntarios</p>
+        </div>
+        <div className="bg-gradient-to-br from-teal-50 to-teal-100 border-2 border-teal-200 rounded-lg p-4 text-center">
+          <Shield className="w-6 h-6 text-teal-600 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-teal-900">{users.filter(u => u.role === 'admin').length}</p>
+          <p className="text-sm text-teal-700 font-medium">Admins</p>
+        </div>
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-lg p-4 text-center">
+          <Crown className="w-6 h-6 text-purple-600 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-purple-900">{users.filter(u => u.role === 'admin_master').length}</p>
+          <p className="text-sm text-purple-700 font-medium">Admin Master</p>
+        </div>
+      </div>
 
-      {/* Create Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-blue-100 rounded-full">
-                <Plus className="w-6 h-6 text-blue-600" />
-              </div>
-              <h3 className="text-gray-900">Crear Nuevo Usuario</h3>
-            </div>
-
-            <div className="mb-6 space-y-2">
-              <div className="flex flex-col">
-                <label className="text-sm text-gray-600">Nombre</label>
-                <input
-                  type="text"
-                  value={newUser.name}
-                  onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-sm text-gray-600">Email</label>
-                <input
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-sm text-gray-600">Teléfono</label>
-                <input
-                  type="text"
-                  value={newUser.phone}
-                  onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-sm text-gray-600">Área</label>
-                <input
-                  type="text"
-                  value={newUser.area}
-                  onChange={(e) => setNewUser({ ...newUser, area: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-sm text-gray-600">Habilidades</label>
-                <input
-                  type="text"
-                  value={newUser.skills}
-                  onChange={(e) => setNewUser({ ...newUser, skills: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-sm text-gray-600">Contraseña</label>
-                <input
-                  type="password"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+      {/* Assignments Modal */}
+      {showAssignmentsModal && assignmentsData && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white/20 p-2 rounded-lg">
+                    <AlertTriangle className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-bold text-xl">⚠️ Usuario con Asignaciones</h3>
+                    <p className="text-red-100 text-sm">Se requiere acción antes de continuar</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowAssignmentsModal(false);
+                    setAssignmentsData(null);
+                  }}
+                  className="text-white/80 hover:text-white transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
               </div>
             </div>
 
-            <div className="flex gap-3">
+            {/* Content */}
+            <div className="p-6 max-h-[calc(90vh-200px)] overflow-y-auto">
+              <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-amber-900 font-semibold mb-1">
+                      No se puede {assignmentsData.action === 'demote' ? 'degradar' : 'eliminar'} al usuario directamente
+                    </p>
+                    <p className="text-amber-800 text-sm leading-relaxed">
+                      El usuario <span className="font-bold">{assignmentsData.user.name}</span> está asignado como encargado de {assignmentsData.projects.length} proyecto(s) y {assignmentsData.convocatorias.length} convocatoria(s). 
+                      Debe ser removido de todas sus asignaciones antes de continuar.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Projects */}
+                {assignmentsData.projects.length > 0 && (
+                  <div className="bg-gradient-to-br from-teal-50 to-teal-100 border-2 border-teal-300 rounded-xl p-5 shadow-sm">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="bg-teal-100 p-2 rounded-lg">
+                        <FolderOpen className="w-5 h-5 text-teal-700" />
+                      </div>
+                      <h4 className="font-bold text-teal-900">
+                        Proyectos Asignados ({assignmentsData.projects.length})
+                      </h4>
+                    </div>
+                    <ul className="space-y-2">
+                      {assignmentsData.projects.map(project => (
+                        <li key={project.id} className="flex items-start gap-2 text-teal-800 bg-white/60 p-3 rounded-lg">
+                          <span className="w-2 h-2 bg-teal-500 rounded-full flex-shrink-0 mt-1.5"></span>
+                          <div>
+                            <p className="font-semibold">{project.name}</p>
+                            <p className="text-sm text-teal-700">Estado: {project.status}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Convocatorias */}
+                {assignmentsData.convocatorias.length > 0 && (
+                  <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-300 rounded-xl p-5 shadow-sm">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="bg-emerald-100 p-2 rounded-lg">
+                        <Megaphone className="w-5 h-5 text-emerald-700" />
+                      </div>
+                      <h4 className="font-bold text-emerald-900">
+                        Convocatorias Asignadas ({assignmentsData.convocatorias.length})
+                      </h4>
+                    </div>
+                    <ul className="space-y-2">
+                      {assignmentsData.convocatorias.map(convocatoria => (
+                        <li key={convocatoria.id} className="flex items-start gap-2 text-emerald-800 bg-white/60 p-3 rounded-lg">
+                          <span className="w-2 h-2 bg-emerald-500 rounded-full flex-shrink-0 mt-1.5"></span>
+                          <div>
+                            <p className="font-semibold">{convocatoria.title}</p>
+                            <p className="text-sm text-emerald-700">Estado: {convocatoria.status}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 bg-gray-50 border-2 border-gray-200 rounded-xl p-4">
+                <p className="text-gray-700 text-sm">
+                  <span className="font-bold">¿Qué sucederá?</span> Si continúas, el usuario será removido automáticamente como encargado de todos los proyectos y convocatorias listados arriba, dejándolos sin encargado asignado.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 px-6 py-4 border-t-2 border-gray-200 flex items-center justify-between">
               <button
                 onClick={() => {
-                  setShowCreateModal(false);
-                  setNewUser({
-                    name: '',
-                    email: '',
-                    phone: '',
-                    area: '',
-                    skills: '',
-                    password: '',
-                  });
+                  setShowAssignmentsModal(false);
+                  setAssignmentsData(null);
                 }}
-                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                className="px-6 py-2.5 bg-white text-gray-700 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
               >
                 Cancelar
               </button>
               <button
-                onClick={async () => {
-                  try {
-                    await apiPost('/users', newUser);
-                    
-                    // Store password in localStorage (same as RegisterPage)
-                    localStorage.setItem(`user_pass_${newUser.email}`, newUser.password);
-                    
-                    alert('Usuario creado exitosamente');
-                    refetch();
-                    setShowCreateModal(false);
-                    setNewUser({
-                      name: '',
-                      email: '',
-                      phone: '',
-                      area: '',
-                      skills: '',
-                      password: '',
-                    });
-                  } catch (err) {
-                    const errorMessage = err instanceof Error ? err.message : 'Error al crear usuario';
-                    alert(errorMessage);
-                  }
-                }}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                onClick={handleRemoveAndProceed}
+                className="px-6 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all shadow-lg hover:shadow-xl font-semibold flex items-center gap-2"
               >
-                Crear Usuario
+                <AlertTriangle className="w-4 h-4" />
+                Remover de Asignaciones y {assignmentsData.action === 'demote' ? 'Degradar' : 'Eliminar'}
               </button>
             </div>
           </div>
@@ -524,45 +607,4 @@ export function UsersAdmin() {
       )}
     </div>
   );
-}
-
-function getRoleIcon(role: string) {
-  switch (role) {
-    case 'admin_master':
-      return Shield;
-    case 'admin':
-      return Shield;
-    case 'volunteer':
-      return UserCheck;
-    default:
-      return User;
-  }
-}
-
-function getRoleColor(role: string) {
-  switch (role) {
-    case 'admin_master':
-      return 'bg-orange-100 text-orange-700';
-    case 'admin':
-      return 'bg-purple-100 text-purple-700';
-    case 'volunteer':
-      return 'bg-green-100 text-green-700';
-    default:
-      return 'bg-blue-100 text-blue-700';
-  }
-}
-
-function getRoleText(role: string) {
-  switch (role) {
-    case 'admin_master':
-      return 'Admin Master';
-    case 'admin':
-      return 'Admin';
-    case 'volunteer':
-      return 'Voluntario';
-    case 'user':
-      return 'Usuario';
-    default:
-      return role;
-  }
 }

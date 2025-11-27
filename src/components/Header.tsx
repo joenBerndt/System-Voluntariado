@@ -9,7 +9,7 @@ export function Header({ onLogout }: HeaderProps) {
     <header className="bg-white border-b border-gray-200 px-8 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-lg">
+          <div className="bg-gradient-to-br from-emerald-600 to-teal-600 p-2 rounded-lg shadow-lg">
             <Users className="w-6 h-6 text-white" />
           </div>
           <div>
@@ -22,8 +22,8 @@ export function Header({ onLogout }: HeaderProps) {
             <p className="text-gray-900">Administrador</p>
             <p className="text-gray-500 text-sm">admin@iiap.org</p>
           </div>
-          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-            <span className="text-blue-600">A</span>
+          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center shadow-lg">
+            <span className="text-white font-bold">A</span>
           </div>
           {onLogout && (
             <button

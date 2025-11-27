@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { ArrowLeft, Users } from 'lucide-react';
 import { apiPost } from '../hooks/useApi';
+import { LoadingOverlay } from './LoadingOverlay';
+import { useNotifications } from '../contexts/NotificationContext';
 
 interface RegisterPageProps {
   onBack: () => void;
@@ -19,18 +21,24 @@ export function RegisterPage({ onBack, onSuccess }: RegisterPageProps) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  const { showError, showSuccess } = useNotifications();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (formData.password !== formData.confirmPassword) {
-      setError('Las contraseñas no coinciden');
+      const errorMsg = 'Las contraseñas no coinciden';
+      setError(errorMsg);
+      showError('Error de validación', errorMsg);
       return;
     }
 
     if (formData.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+      const errorMsg = 'La contraseña debe tener al menos 6 caracteres';
+      setError(errorMsg);
+      showError('Error de validación', errorMsg);
       return;
     }
 
@@ -48,17 +56,28 @@ export function RegisterPage({ onBack, onSuccess }: RegisterPageProps) {
       // Store password in localStorage (in production use proper auth)
       localStorage.setItem(`user_pass_${formData.email}`, formData.password);
 
-      alert('Registro exitoso. Ahora puedes iniciar sesión.');
-      onSuccess();
+      showSuccess(
+        '¡Registro exitoso!',
+        `Bienvenido ${formData.name}. Ahora puedes iniciar sesión con tu cuenta`
+      );
+      
+      // Delay to show the success notification
+      setTimeout(() => {
+        onSuccess();
+      }, 1500);
     } catch (err) {
       console.error('Error registering:', err);
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido al registrar';
       
       // Show specific error message from server
       if (errorMessage.includes('Email already registered')) {
-        setError('Este email ya está registrado. Por favor, inicia sesión o usa otro email.');
+        const msg = 'Este email ya está registrado. Por favor, inicia sesión o usa otro email.';
+        setError(msg);
+        showError('Email duplicado', msg);
       } else {
-        setError(`Error al registrar: ${errorMessage}`);
+        const msg = `Error al registrar: ${errorMessage}`;
+        setError(msg);
+        showError('Error en el registro', errorMessage);
       }
     } finally {
       setLoading(false);
@@ -66,19 +85,21 @@ export function RegisterPage({ onBack, onSuccess }: RegisterPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-2xl">
+    <>
+      {loading && <LoadingOverlay message="Creando tu cuenta..." subtitle="Registrando tus datos en el sistema" />}
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-12 px-4">
+        <div className="max-w-2xl mx-auto">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors"
+          className="flex items-center gap-2 text-gray-700 hover:text-emerald-700 mb-6 transition-colors font-medium"
         >
           <ArrowLeft className="w-5 h-5" />
-          Volver al inicio de sesión
+          Volver al inicio
         </button>
 
-        <div className="bg-white rounded-xl shadow-lg p-8">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 border-2 border-emerald-100">
           <div className="flex items-center justify-center mb-6">
-            <div className="bg-blue-600 p-3 rounded-lg">
+            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 p-3 rounded-lg shadow-lg">
               <Users className="w-10 h-10 text-white" />
             </div>
           </div>
@@ -190,7 +211,7 @@ export function RegisterPage({ onBack, onSuccess }: RegisterPageProps) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-4 py-3 rounded-lg hover:from-emerald-700 hover:to-emerald-800 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg font-medium"
             >
               {loading ? 'Registrando...' : 'Registrarse'}
             </button>
@@ -198,5 +219,6 @@ export function RegisterPage({ onBack, onSuccess }: RegisterPageProps) {
         </div>
       </div>
     </div>
+    </>
   );
 }

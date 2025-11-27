@@ -2,12 +2,16 @@ import { useState } from 'react';
 import { Plus, Search, Edit2, Trash2, Eye, EyeOff } from 'lucide-react';
 import { useApi, apiPost, apiPut, apiDelete } from '../../hooks/useApi';
 import { AreaModal } from './AreaModal';
+import { LoadingSpinner } from '../LoadingOverlay';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 export function AreasAdmin() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedArea, setSelectedArea] = useState<any>(null);
   const { data: areasData, loading, error, refetch } = useApi<any[]>('/areas');
+  
+  const { showSuccess, showError, showLoading, hideNotification } = useNotifications();
 
   const areas = areasData || [];
 

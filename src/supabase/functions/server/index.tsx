@@ -219,9 +219,13 @@ app.post('/make-server-f99e977c/volunteers', async (c) => {
     }
     
     const id = Date.now().toString();
+    
+    // Remove password from volunteer data (will be stored separately in localStorage on client)
+    const { password, ...dataWithoutPassword } = volunteerData;
+    
     const volunteer = {
       id,
-      ...volunteerData,
+      ...dataWithoutPassword,
       role: 'volunteer',
       status: 'activo',
       registeredDate: new Date().toISOString().split('T')[0],
@@ -366,6 +370,26 @@ app.put('/make-server-f99e977c/users/:id/role', async (c) => {
   }
 });
 
+// Update user (general endpoint)
+app.put('/make-server-f99e977c/users/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const userData = await c.req.json();
+    const existing = await kv.get(`user:${id}`);
+    
+    if (!existing) {
+      return c.json({ success: false, error: 'User not found' }, 404);
+    }
+    
+    const updated = { ...existing, ...userData, id }; // Preserve ID
+    await kv.set(`user:${id}`, updated);
+    return c.json({ success: true, data: updated });
+  } catch (error) {
+    console.log('Error updating user:', error);
+    return c.json({ success: false, error: 'Failed to update user' }, 500);
+  }
+});
+
 // Delete user
 app.delete('/make-server-f99e977c/users/:id', async (c) => {
   try {
@@ -473,6 +497,53 @@ app.delete('/make-server-f99e977c/projects/:id', async (c) => {
   } catch (error) {
     console.log('Error deleting project:', error);
     return c.json({ success: false, error: 'Failed to delete project' }, 500);
+  }
+});
+
+// ============ PROJECT ASSIGNMENTS ENDPOINTS ============
+
+// Get all project assignments
+app.get('/make-server-f99e977c/project-assignments', async (c) => {
+  try {
+    const assignments = await kv.getByPrefix('project-assignment:');
+    return c.json({ success: true, data: assignments });
+  } catch (error) {
+    console.log('Error fetching project assignments:', error);
+    return c.json({ success: false, error: 'Failed to fetch project assignments' }, 500);
+  }
+});
+
+// Create project assignment
+app.post('/make-server-f99e977c/project-assignments', async (c) => {
+  try {
+    const { projectId, volunteerId, convocatoriaId } = await c.req.json();
+    const assignmentId = `${volunteerId}:${projectId}`;
+    const assignment = {
+      id: assignmentId,
+      volunteerId,
+      projectId,
+      convocatoriaId: convocatoriaId || null,
+      assignedAt: new Date().toISOString(),
+      status: 'active',
+    };
+    
+    await kv.set(`project-assignment:${assignmentId}`, assignment);
+    return c.json({ success: true, data: assignment });
+  } catch (error) {
+    console.log('Error creating project assignment:', error);
+    return c.json({ success: false, error: 'Failed to create project assignment' }, 500);
+  }
+});
+
+// Delete project assignment
+app.delete('/make-server-f99e977c/project-assignments/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await kv.del(`project-assignment:${id}`);
+    return c.json({ success: true });
+  } catch (error) {
+    console.log('Error deleting project assignment:', error);
+    return c.json({ success: false, error: 'Failed to delete project assignment' }, 500);
   }
 });
 
@@ -928,286 +999,206 @@ app.put('/make-server-f99e977c/about', async (c) => {
   }
 });
 
-// ============ TRAINING VIDEOS ENDPOINTS ============
+// ============ TRAINING MATERIALS ENDPOINTS ============
 
-// Get all training videos
-app.get('/make-server-f99e977c/training-videos', async (c) => {
+// Get all training materials
+app.get('/make-server-f99e977c/training-materials', async (c) => {
   try {
-    const videos = await kv.getByPrefix('training-video:');
-    return c.json({ success: true, data: videos });
+    const materials = await kv.getByPrefix('training-material:');
+    return c.json({ success: true, data: materials });
   } catch (error) {
-    console.log('Error fetching training videos:', error);
-    return c.json({ success: false, error: 'Failed to fetch training videos' }, 500);
+    console.error('Error fetching training materials:', error);
+    return c.json({ success: false, error: 'Failed to fetch training materials' }, 500);
   }
 });
 
-// Create training video
-app.post('/make-server-f99e977c/training-videos', async (c) => {
+// Create training material
+app.post('/make-server-f99e977c/training-materials', async (c) => {
   try {
-    const videoData = await c.req.json();
+    const materialData = await c.req.json();
     const id = Date.now().toString();
-    const video = {
+    const material = {
       id,
-      ...videoData,
+      ...materialData,
       createdAt: new Date().toISOString(),
     };
-    await kv.set(`training-video:${id}`, video);
-    return c.json({ success: true, data: video });
+    
+    await kv.set(`training-material:${id}`, material);
+    return c.json({ success: true, data: material });
   } catch (error) {
-    console.log('Error creating training video:', error);
-    return c.json({ success: false, error: 'Failed to create training video' }, 500);
+    console.error('Error creating training material:', error);
+    return c.json({ success: false, error: 'Failed to create training material' }, 500);
   }
 });
 
-// Update training video
-app.put('/make-server-f99e977c/training-videos/:id', async (c) => {
+// Update training material
+app.put('/make-server-f99e977c/training-materials/:id', async (c) => {
   try {
     const id = c.req.param('id');
     const updates = await c.req.json();
-    const existing = await kv.get(`training-video:${id}`);
+    const existing = await kv.get(`training-material:${id}`);
     
     if (!existing) {
-      return c.json({ success: false, error: 'Video not found' }, 404);
+      return c.json({ success: false, error: 'Training material not found' }, 404);
     }
     
     const updated = { ...existing, ...updates };
-    await kv.set(`training-video:${id}`, updated);
+    await kv.set(`training-material:${id}`, updated);
     return c.json({ success: true, data: updated });
   } catch (error) {
-    console.log('Error updating training video:', error);
-    return c.json({ success: false, error: 'Failed to update training video' }, 500);
+    console.error('Error updating training material:', error);
+    return c.json({ success: false, error: 'Failed to update training material' }, 500);
   }
 });
 
-// Delete training video
-app.delete('/make-server-f99e977c/training-videos/:id', async (c) => {
+// Delete training material
+app.delete('/make-server-f99e977c/training-materials/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    await kv.del(`training-video:${id}`);
+    const existing = await kv.get(`training-material:${id}`);
+    
+    if (!existing) {
+      return c.json({ success: false, error: 'Training material not found' }, 404);
+    }
+    
+    // Delete the material
+    await kv.del(`training-material:${id}`);
+    
+    // Delete all progress records associated with this material
+    const allProgress = await kv.getByPrefix('material-progress:');
+    const materialProgress = allProgress.filter((p: any) => p.materialId === id);
+    for (const progress of materialProgress) {
+      await kv.del(`material-progress:${progress.volunteerId}:${id}`);
+    }
+    
     return c.json({ success: true });
   } catch (error) {
-    console.log('Error deleting training video:', error);
-    return c.json({ success: false, error: 'Failed to delete training video' }, 500);
+    console.error('Error deleting training material:', error);
+    return c.json({ success: false, error: 'Failed to delete training material' }, 500);
   }
 });
 
-// Mark video as completed by volunteer
-app.post('/make-server-f99e977c/training-videos/:id/complete', async (c) => {
+// ============ MATERIAL PROGRESS ENDPOINTS ============
+
+// Get all material progress
+app.get('/make-server-f99e977c/material-progress', async (c) => {
   try {
-    const videoId = c.req.param('id');
-    const { userId } = await c.req.json();
-    
-    const completionId = `${userId}:${videoId}`;
-    const completion = {
-      id: completionId,
-      userId,
-      videoId,
-      completedAt: new Date().toISOString(),
-    };
-    
-    await kv.set(`video-completion:${completionId}`, completion);
-    return c.json({ success: true, data: completion });
+    const progress = await kv.getByPrefix('material-progress:');
+    return c.json({ success: true, data: progress });
   } catch (error) {
-    console.log('Error marking video as complete:', error);
-    return c.json({ success: false, error: 'Failed to mark video as complete' }, 500);
+    console.error('Error fetching material progress:', error);
+    return c.json({ success: false, error: 'Failed to fetch material progress' }, 500);
   }
 });
 
-// Get video completions for a user
-app.get('/make-server-f99e977c/training-videos/completions/:userId', async (c) => {
-  try {
-    const userId = c.req.param('userId');
-    const completions = await kv.getByPrefix(`video-completion:${userId}:`);
-    return c.json({ success: true, data: completions });
-  } catch (error) {
-    console.log('Error fetching video completions:', error);
-    return c.json({ success: false, error: 'Failed to fetch video completions' }, 500);
-  }
-});
-
-// ============ PROJECTS ENDPOINTS (for volunteers) ============
-
-// Get all project assignments
-app.get('/make-server-f99e977c/project-assignments', async (c) => {
-  try {
-    const assignments = await kv.getByPrefix('project-assignment:');
-    return c.json({ success: true, data: assignments });
-  } catch (error) {
-    console.log('Error fetching project assignments:', error);
-    return c.json({ success: false, error: 'Failed to fetch project assignments' }, 500);
-  }
-});
-
-// Assign volunteer to project
-app.post('/make-server-f99e977c/project-assignments', async (c) => {
-  try {
-    const { projectId, volunteerId } = await c.req.json();
-    const assignmentId = `${volunteerId}:${projectId}`;
-    
-    const assignment = {
-      id: assignmentId,
-      volunteerId,
-      projectId,
-      assignedAt: new Date().toISOString(),
-      status: 'active',
-    };
-    
-    await kv.set(`project-assignment:${assignmentId}`, assignment);
-    return c.json({ success: true, data: assignment });
-  } catch (error) {
-    console.log('Error assigning project:', error);
-    return c.json({ success: false, error: 'Failed to assign project' }, 500);
-  }
-});
-
-// Remove volunteer from project (make them inactive)
-app.delete('/make-server-f99e977c/project-assignments/:id', async (c) => {
-  try {
-    const id = c.req.param('id');
-    await kv.del(`project-assignment:${id}`);
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error removing assignment:', error);
-    return c.json({ success: false, error: 'Failed to remove assignment' }, 500);
-  }
-});
-
-// Get projects assigned to a volunteer
-app.get('/make-server-f99e977c/volunteer-projects/:volunteerId', async (c) => {
+// Get progress for a specific volunteer
+app.get('/make-server-f99e977c/material-progress/volunteer/:volunteerId', async (c) => {
   try {
     const volunteerId = c.req.param('volunteerId');
-    const assignments = await kv.getByPrefix(`project-assignment:${volunteerId}:`);
-    
-    // Get full project details
-    const projectPromises = assignments.map(async (assignment: any) => {
-      const convocatoria = await kv.get(`convocatoria:${assignment.convocatoriaId}`);
-      return {
-        ...convocatoria,
-        assignmentId: assignment.id,
-        assignedAt: assignment.assignedAt,
-        status: assignment.status,
-      };
-    });
-    
-    const projects = await Promise.all(projectPromises);
-    return c.json({ success: true, data: projects.filter(p => p.id) });
+    const progress = await kv.getByPrefix(`material-progress:${volunteerId}:`);
+    return c.json({ success: true, data: progress });
   } catch (error) {
-    console.log('Error fetching volunteer projects:', error);
-    return c.json({ success: false, error: 'Failed to fetch volunteer projects' }, 500);
+    console.error('Error fetching volunteer progress:', error);
+    return c.json({ success: false, error: 'Failed to fetch volunteer progress' }, 500);
   }
 });
 
-// ============ PROFILE MANAGEMENT ENDPOINTS ============
-
-// Initialize storage bucket for profile photos
-const initializeStorageBucket = async () => {
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL'),
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
-  );
-  
-  const bucketName = 'make-f99e977c-profile-photos';
-  const { data: buckets } = await supabase.storage.listBuckets();
-  const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
-  
-  if (!bucketExists) {
-    await supabase.storage.createBucket(bucketName, {
-      public: true,
-      fileSizeLimit: 5242880, // 5MB
-    });
-  }
-  
-  return bucketName;
-};
-
-// Upload profile photo
-app.post('/make-server-f99e977c/profile/upload-photo', async (c) => {
+// Create or update material progress
+app.post('/make-server-f99e977c/material-progress', async (c) => {
   try {
-    const formData = await c.req.formData();
-    const file = formData.get('photo') as File;
-    const userId = formData.get('userId') as string;
+    const progressData = await c.req.json();
+    const { volunteerId, materialId, userId, progress, viewed } = progressData;
     
-    if (!file || !userId) {
-      return c.json({ success: false, error: 'Missing file or userId' }, 400);
+    // Use either volunteerId or userId
+    const id = volunteerId || userId;
+    
+    if (!id || !materialId) {
+      return c.json({ success: false, error: 'volunteerId/userId and materialId are required' }, 400);
     }
     
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL'),
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
-    );
+    const key = `material-progress:${id}:${materialId}`;
+    const existing = await kv.get(key);
     
-    const bucketName = await initializeStorageBucket();
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}-${Date.now()}.${fileExt}`;
-    const filePath = `${fileName}`;
+    const progressRecord = {
+      id: existing?.id || `${id}-${materialId}`,
+      volunteerId: id,
+      userId: id,
+      materialId,
+      progress: progress !== undefined ? progress : (existing?.progress || 0),
+      viewed: viewed !== undefined ? viewed : (existing?.viewed || false),
+      viewedAt: progressData.viewedAt || existing?.viewedAt,
+      completedAt: progressData.completedAt || existing?.completedAt,
+      lastUpdated: new Date().toISOString(),
+      createdAt: existing?.createdAt || new Date().toISOString(),
+    };
     
-    // Convert file to ArrayBuffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
-    
-    // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
-      .from(bucketName)
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        upsert: true,
-      });
-    
-    if (error) {
-      console.error('Storage upload error:', error);
-      return c.json({ success: false, error: error.message }, 500);
-    }
-    
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from(bucketName)
-      .getPublicUrl(filePath);
-    
-    return c.json({ success: true, data: { url: publicUrl, path: filePath } });
+    await kv.set(key, progressRecord);
+    return c.json({ success: true, data: progressRecord });
   } catch (error) {
-    console.error('Error uploading photo:', error);
-    return c.json({ success: false, error: 'Failed to upload photo' }, 500);
+    console.error('Error saving material progress:', error);
+    return c.json({ success: false, error: 'Failed to save material progress' }, 500);
   }
 });
 
-// Update user profile
-app.put('/make-server-f99e977c/profile/:userId', async (c) => {
+// Update material progress by ID
+app.put('/make-server-f99e977c/material-progress/:id', async (c) => {
   try {
-    const userId = c.req.param('userId');
+    const id = c.req.param('id');
     const updates = await c.req.json();
     
-    console.log('Updating profile for user:', userId, updates);
+    // ID format is "volunteerId-materialId"
+    const [volunteerId, materialId] = id.split('-');
     
-    const user = await kv.get(`user:${userId}`);
-    if (!user) {
-      return c.json({ success: false, error: 'User not found' }, 404);
+    if (!volunteerId || !materialId) {
+      return c.json({ success: false, error: 'Invalid progress ID format' }, 400);
     }
     
-    // Update user data
-    const updatedUser = { ...user, ...updates };
-    await kv.set(`user:${userId}`, updatedUser);
+    const key = `material-progress:${volunteerId}:${materialId}`;
+    const existing = await kv.get(key);
     
-    return c.json({ success: true, data: updatedUser });
+    const progressRecord = {
+      id,
+      volunteerId,
+      userId: volunteerId,
+      materialId,
+      ...(existing || {}),
+      ...updates,
+      lastUpdated: new Date().toISOString(),
+    };
+    
+    await kv.set(key, progressRecord);
+    return c.json({ success: true, data: progressRecord });
   } catch (error) {
-    console.error('Error updating profile:', error);
-    return c.json({ success: false, error: 'Failed to update profile' }, 500);
+    console.error('Error updating material progress:', error);
+    return c.json({ success: false, error: 'Failed to update material progress' }, 500);
   }
 });
 
-// Get user profile
-app.get('/make-server-f99e977c/profile/:userId', async (c) => {
+// Update material progress
+app.put('/make-server-f99e977c/material-progress/:volunteerId/:materialId', async (c) => {
   try {
-    const userId = c.req.param('userId');
-    const user = await kv.get(`user:${userId}`);
+    const volunteerId = c.req.param('volunteerId');
+    const materialId = c.req.param('materialId');
+    const updates = await c.req.json();
     
-    if (!user) {
-      return c.json({ success: false, error: 'User not found' }, 404);
-    }
+    const key = `material-progress:${volunteerId}:${materialId}`;
+    const existing = await kv.get(key);
     
-    return c.json({ success: true, data: user });
+    const progressRecord = {
+      id: `${volunteerId}-${materialId}`,
+      volunteerId,
+      userId: volunteerId,
+      materialId,
+      ...(existing || {}),
+      ...updates,
+      lastUpdated: new Date().toISOString(),
+    };
+    
+    await kv.set(key, progressRecord);
+    return c.json({ success: true, data: progressRecord });
   } catch (error) {
-    console.error('Error fetching profile:', error);
-    return c.json({ success: false, error: 'Failed to fetch profile' }, 500);
+    console.error('Error updating material progress:', error);
+    return c.json({ success: false, error: 'Failed to update material progress' }, 500);
   }
 });
 

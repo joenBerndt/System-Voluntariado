@@ -4,6 +4,8 @@ import { ConvocatoriaModal } from './ConvocatoriaModal';
 import { ConvocatoriaDetail } from './ConvocatoriaDetail';
 import { useApi, apiPost, apiPut, apiDelete } from '../hooks/useApi';
 import { projectId, publicAnonKey } from '../utils/supabase/info.tsx';
+import { LoadingSpinner } from './LoadingOverlay';
+import { useNotifications } from '../contexts/NotificationContext';
 
 const API_URL = `https://${projectId}.supabase.co/functions/v1/make-server-f99e977c`;
 
@@ -14,6 +16,8 @@ export function Convocatorias() {
   const { data: convocatoriasData, loading, error, refetch } = useApi<any[]>('/convocatorias');
   const { data: projectsData } = useApi<any[]>('/projects');
   const [viewDetail, setViewDetail] = useState<any>(null);
+  
+  const { showSuccess, showError, showLoading, hideNotification } = useNotifications();
 
   const convocatorias = convocatoriasData || [];
   const projects = projectsData || [];
@@ -34,8 +38,10 @@ export function Convocatorias() {
     setIsModalOpen(true);
   };
 
-  const handleDeleteConvocatoria = async (id: string) => {
+  const handleDeleteConvocatoria = async (id: string, title: string) => {
     if (window.confirm('¿Está seguro de eliminar esta convocatoria?')) {
+      const loadingId = showLoading('Eliminando convocatoria...', 'Espera un momento');
+      
       try {
         const response = await fetch(`${API_URL}/convocatorias/${id}`, {
           method: 'DELETE',
@@ -45,47 +51,77 @@ export function Convocatorias() {
         });
         
         const result = await response.json();
+        hideNotification(loadingId);
         
         if (result.success) {
           if (result.terminated) {
-            alert('La convocatoria ha sido marcada como terminada y ya no aparecerá en el landing.');
+            showSuccess(
+              'Convocatoria terminada',
+              `La convocatoria "${title}" ha sido marcada como finalizada y ya no aparecerá en el landing`
+            );
           } else {
-            alert('Convocatoria eliminada exitosamente');
+            showSuccess(
+              '¡Convocatoria eliminada!',
+              `La convocatoria "${title}" fue eliminada exitosamente`
+            );
           }
           refetch();
         } else {
           if (result.cannotDelete) {
-            alert(result.error);
+            showError('No se puede eliminar', result.error);
           } else {
             throw new Error(result.error);
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error deleting convocatoria:', err);
-        alert('Error al eliminar la convocatoria');
+        hideNotification(loadingId);
+        showError(
+          'Error al eliminar',
+          err?.message || 'No se pudo eliminar la convocatoria. Por favor intenta nuevamente.'
+        );
       }
     }
   };
 
   const handleSaveConvocatoria = async (convocatoriaData: any) => {
+    const loadingId = showLoading(
+      selectedConvocatoria ? 'Actualizando convocatoria...' : 'Creando convocatoria...',
+      'Por favor espera un momento'
+    );
+    
     try {
       if (selectedConvocatoria) {
         await apiPut(`/convocatorias/${selectedConvocatoria.id}`, convocatoriaData);
+        hideNotification(loadingId);
+        showSuccess(
+          '¡Convocatoria actualizada!',
+          `La convocatoria "${convocatoriaData.title}" se actualizó correctamente`
+        );
       } else {
         await apiPost('/convocatorias', convocatoriaData);
+        hideNotification(loadingId);
+        showSuccess(
+          '¡Convocatoria creada exitosamente!',
+          `La convocatoria "${convocatoriaData.title}" está lista para recibir postulaciones`
+        );
       }
       refetch();
       setIsModalOpen(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving convocatoria:', err);
-      alert('Error al guardar la convocatoria');
+      hideNotification(loadingId);
+      showError(
+        'Error al guardar convocatoria',
+        err?.message || 'No se pudo guardar la convocatoria. Por favor intenta nuevamente.'
+      );
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Cargando convocatorias...</div>
+      <div className="h-64">
+        <LoadingSpinner size="lg" message="Cargando convocatorias disponibles..." />
       </div>
     );
   }
@@ -165,7 +201,7 @@ export function Convocatorias() {
                   <Edit2 className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => handleDeleteConvocatoria(convocatoria.id)}
+                  onClick={() => handleDeleteConvocatoria(convocatoria.id, convocatoria.title)}
                   className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />

@@ -48,6 +48,14 @@ export function VolunteerModal({ volunteer, onClose, onSave }: VolunteerModalPro
           </button>
         </div>
 
+        {!volunteer && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-blue-800 text-sm">
+              <span className="font-semibold">Nota:</span> El nuevo voluntario se creará con la contraseña por defecto: <span className="font-mono font-bold">12345678</span>
+            </p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-gray-700 mb-2">Nombre completo</label>

@@ -46,56 +46,56 @@ export function Dashboard({ currentUser }: DashboardProps) {
       label: 'Usuarios Totales',
       value: totalUsers,
       icon: Users,
-      color: 'bg-blue-500',
+      color: 'from-gray-600 to-gray-700',
       description: 'Todos los usuarios del sistema'
     },
     {
       label: 'Usuarios Registrados',
       value: regularUsers.length,
       icon: UserCircle,
-      color: 'bg-cyan-500',
+      color: 'from-blue-600 to-blue-700',
       description: 'Pueden postular a convocatorias'
     },
     {
       label: 'Voluntarios Activos',
       value: volunteerUsers.length,
       icon: UserCheck,
-      color: 'bg-green-500',
+      color: 'from-emerald-600 to-emerald-700',
       description: 'Postulantes aceptados'
     },
     {
       label: 'Postulaciones Pendientes',
       value: pendingApplications,
       icon: FileText,
-      color: 'bg-orange-500',
+      color: 'from-amber-600 to-amber-700',
       description: 'Esperando revisión'
     },
     {
       label: 'Entrevistas Pendientes',
       value: interviewPendingApplications,
       icon: Calendar,
-      color: 'bg-yellow-500',
+      color: 'from-orange-600 to-orange-700',
       description: 'Entrevistas programadas'
     },
     {
       label: 'Convocatorias Activas',
       value: activeConvocatorias,
       icon: Megaphone,
-      color: 'bg-purple-500',
+      color: 'from-teal-600 to-teal-700',
       description: 'Abiertas para postular'
     },
     {
       label: 'Proyectos Totales',
       value: projects.length,
       icon: FolderOpen,
-      color: 'bg-indigo-500',
+      color: 'from-indigo-600 to-indigo-700',
       description: 'Proyectos registrados'
     },
     {
       label: 'Áreas Totales',
       value: areas.length,
       icon: Briefcase,
-      color: 'bg-pink-500',
+      color: 'from-purple-600 to-purple-700',
       description: 'Áreas de trabajo'
     },
   ];
@@ -106,28 +106,28 @@ export function Dashboard({ currentUser }: DashboardProps) {
       label: 'Postulaciones Pendientes',
       value: pendingApplications,
       icon: FileText,
-      color: 'bg-orange-500',
+      color: 'from-amber-600 to-amber-700',
       description: 'Esperando revisión'
     },
     {
       label: 'Voluntarios Activos',
       value: volunteerUsers.length,
       icon: UserCheck,
-      color: 'bg-green-500',
+      color: 'from-emerald-600 to-emerald-700',
       description: 'Postulantes aceptados'
     },
     {
       label: 'Entrevistas Pendientes',
       value: interviewPendingApplications,
       icon: Calendar,
-      color: 'bg-yellow-500',
+      color: 'from-orange-600 to-orange-700',
       description: 'Entrevistas programadas'
     },
     {
       label: 'Convocatorias Activas',
       value: activeConvocatorias,
       icon: Megaphone,
-      color: 'bg-purple-500',
+      color: 'from-teal-600 to-teal-700',
       description: 'Abiertas para postular'
     },
   ];
@@ -157,35 +157,35 @@ export function Dashboard({ currentUser }: DashboardProps) {
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div key={stat.label} className="bg-white p-6 rounded-xl border border-gray-200 hover:border-blue-300 transition-all">
+            <div key={stat.label} className="bg-white p-6 rounded-xl border-2 border-gray-100 hover:border-emerald-300 transition-all shadow-lg hover:shadow-xl">
               <div className="flex items-center justify-between mb-4">
-                <div className={`${stat.color} p-3 rounded-lg`}>
+                <div className={`bg-gradient-to-br ${stat.color} p-3 rounded-lg shadow-md`}>
                   <Icon className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-gray-900 text-2xl">{stat.value}</span>
+                <span className="text-gray-900 text-3xl font-bold">{stat.value}</span>
               </div>
-              <p className="text-gray-900 mb-1">{stat.label}</p>
-              <p className="text-gray-500 text-sm">{stat.description}</p>
+              <p className="text-gray-900 mb-1 font-semibold">{stat.label}</p>
+              <p className="text-gray-600 text-sm">{stat.description}</p>
             </div>
           );
         })}
       </div>
 
       {/* Application Process Stats */}
-      <div className="bg-white p-6 rounded-xl border border-gray-200">
+      <div className="bg-white p-6 rounded-xl border-2 border-gray-100 shadow-lg">
         <h3 className="text-gray-900 mb-4">Estado del Proceso de Postulaciones</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-orange-50 rounded-lg">
-            <p className="text-orange-900 text-2xl mb-1">{interviewPendingApplications}</p>
-            <p className="text-orange-700 text-sm">Entrevistas Programadas</p>
+          <div className="p-5 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-xl border-2 border-orange-200">
+            <p className="text-orange-900 text-3xl mb-1 font-bold">{interviewPendingApplications}</p>
+            <p className="text-orange-800 font-medium">Entrevistas Programadas</p>
           </div>
-          <div className="p-4 bg-purple-50 rounded-lg">
-            <p className="text-purple-900 text-2xl mb-1">{interviewConfirmedApplications}</p>
-            <p className="text-purple-700 text-sm">Entrevistas Confirmadas</p>
+          <div className="p-5 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl border-2 border-purple-200">
+            <p className="text-purple-900 text-3xl mb-1 font-bold">{interviewConfirmedApplications}</p>
+            <p className="text-purple-800 font-medium">Entrevistas Confirmadas</p>
           </div>
-          <div className="p-4 bg-blue-50 rounded-lg">
-            <p className="text-blue-900 text-2xl mb-1">{projects.length}</p>
-            <p className="text-blue-700 text-sm">Proyectos Activos</p>
+          <div className="p-5 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl border-2 border-blue-200">
+            <p className="text-blue-900 text-3xl mb-1 font-bold">{projects.length}</p>
+            <p className="text-blue-800 font-medium">Proyectos Activos</p>
           </div>
         </div>
       </div>

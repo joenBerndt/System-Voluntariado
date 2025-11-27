@@ -3,12 +3,16 @@ import { LandingPage } from './components/LandingPage';
 import { LoginPage } from './components/LoginPage';
 import { RegisterPage } from './components/RegisterPage';
 import { AdminLayout } from './components/AdminLayout';
+import { VolunteerLayout } from './components/VolunteerLayout';
 import { VolunteerIntranet } from './components/volunteer/VolunteerIntranet';
+import { UserIntranet } from './components/UserIntranet';
+import { ServerStatus } from './components/ServerStatus';
 import { initializeData } from './hooks/useApi';
 import { projectId, publicAnonKey } from './utils/supabase/info.tsx';
+import { NotificationProvider } from './contexts/NotificationContext';
 
-type View = 'landing' | 'login' | 'register' | 'admin' | 'volunteer-intranet';
-type UserType = 'admin' | 'volunteer' | null;
+type View = 'landing' | 'login' | 'register' | 'admin' | 'volunteer-intranet' | 'user-intranet';
+type UserType = 'admin' | 'admin_master' | 'volunteer' | 'user' | null;
 
 const API_URL = `https://${projectId}.supabase.co/functions/v1/make-server-f99e977c`;
 
@@ -36,7 +40,20 @@ export default function App() {
     const storedAuth = localStorage.getItem('iiap_admin_auth');
     const storedVolunteerEmail = localStorage.getItem('iiap_volunteer_email');
 
-    if (storedAuth === 'true') {
+    if (storedAuth === 'true' && storedVolunteerEmail === 'admin@iiap.org') {
+      // Admin master logged in
+      const adminUser = {
+        id: 'admin-master-001',
+        name: 'Administrador Master',
+        email: 'admin@iiap.org',
+        role: 'admin_master',
+        phone: '+51 065 265515',
+        area: 'Administración General',
+      };
+      setCurrentVolunteer(adminUser);
+      setUserType('admin');
+      setCurrentView('admin');
+    } else if (storedAuth === 'true') {
       setUserType('admin');
       setCurrentView('admin');
     } else if (storedVolunteerEmail) {
@@ -64,8 +81,12 @@ export default function App() {
         } else if (result.data.role === 'volunteer') {
           setUserType('volunteer');
           setCurrentView('volunteer-intranet');
+        } else if (result.data.role === 'user') {
+          // Regular users go to their own intranet
+          setUserType('user');
+          setCurrentView('user-intranet');
         } else {
-          // Regular user - redirect to landing
+          // Fallback for unknown roles
           setUserType(null);
           setCurrentView('landing');
         }
@@ -81,8 +102,18 @@ export default function App() {
   const handleLogin = async (email: string, password: string) => {
     // Check for hardcoded admin credentials
     if (email === 'admin@iiap.org' && password === 'admin123') {
+      const adminUser = {
+        id: 'admin-master-001',
+        name: 'Administrador Master',
+        email: 'admin@iiap.org',
+        role: 'admin_master',
+        phone: '+51 065 265515',
+        area: 'Administración General',
+      };
+      
       localStorage.setItem('iiap_admin_auth', 'true');
       localStorage.setItem('iiap_volunteer_email', email);
+      setCurrentVolunteer(adminUser);
       setUserType('admin');
       setCurrentView('admin');
       setLoginError('');
@@ -110,9 +141,17 @@ export default function App() {
             localStorage.setItem('iiap_admin_auth', 'true');
             setUserType('admin');
             setCurrentView('admin');
-          } else {
+          } else if (result.data.role === 'volunteer') {
             setUserType('volunteer');
             setCurrentView('volunteer-intranet');
+          } else if (result.data.role === 'user') {
+            // Regular users go to their own intranet
+            setUserType('user');
+            setCurrentView('user-intranet');
+          } else {
+            // Fallback for unknown roles
+            setUserType(null);
+            setCurrentView('landing');
           }
           
           setLoginError('');
@@ -140,11 +179,21 @@ export default function App() {
   };
 
   const handlePostular = (convocatoriaId?: string) => {
-    // Check if volunteer is logged in
+    // Check if user is logged in
     const storedVolunteerEmail = localStorage.getItem('iiap_volunteer_email');
     if (storedVolunteerEmail && currentVolunteer) {
-      // Already logged in, go to intranet
-      setCurrentView('volunteer-intranet');
+      // Already logged in, redirect based on role
+      if (currentVolunteer.role === 'admin' || currentVolunteer.role === 'admin_master') {
+        // Admins go to admin panel - applications section
+        setCurrentView('admin');
+      } else if (currentVolunteer.role === 'volunteer') {
+        // Volunteers go to volunteer intranet
+        setCurrentView('volunteer-intranet');
+      } else if (currentVolunteer.role === 'user') {
+        // Regular users stay on landing page (they're already authenticated)
+        // They can apply from the convocatorias section
+        setCurrentView('landing');
+      }
     } else {
       // Not logged in, go to login
       setCurrentView('login');
@@ -161,46 +210,102 @@ export default function App() {
 
   if (currentView === 'landing') {
     return (
-      <LandingPage
-        onLoginClick={() => setCurrentView('login')}
-        onPostular={handlePostular}
-      />
+      <>
+        <LandingPage
+          onLoginClick={() => setCurrentView('login')}
+          onPostular={handlePostular}
+          currentUser={currentVolunteer}
+          onGoToIntranet={() => {
+            if (currentVolunteer) {
+              if (currentVolunteer.role === 'admin' || currentVolunteer.role === 'admin_master') {
+                setCurrentView('admin');
+              } else if (currentVolunteer.role === 'volunteer') {
+                setCurrentView('volunteer-intranet');
+              } else if (currentVolunteer.role === 'user') {
+                setCurrentView('user-intranet');
+              }
+            }
+          }}
+        />
+        <ServerStatus />
+      </>
     );
   }
 
   if (currentView === 'login') {
     return (
-      <LoginPage
-        onLogin={handleLogin}
-        onBack={() => setCurrentView('landing')}
-        onRegister={() => setCurrentView('register')}
-        error={loginError}
-      />
+      <NotificationProvider>
+        <LoginPage
+          onLogin={handleLogin}
+          onBack={() => setCurrentView('landing')}
+          onRegister={() => setCurrentView('register')}
+          error={loginError}
+        />
+      </NotificationProvider>
     );
   }
 
   if (currentView === 'register') {
     return (
-      <RegisterPage
-        onBack={() => setCurrentView('login')}
+      <NotificationProvider>
+        <RegisterPage
+          onBack={() => setCurrentView('login')}
         onSuccess={() => setCurrentView('login')}
-      />
+        />
+      </NotificationProvider>
     );
   }
 
-  if (currentView === 'admin' && userType === 'admin') {
-    return <AdminLayout onLogout={handleLogout} currentUser={currentVolunteer} onUserUpdate={handleUserUpdate} />;
+  if (currentView === 'admin' && (userType === 'admin' || userType === 'admin_master')) {
+    return (
+      <NotificationProvider>
+        <AdminLayout 
+          onLogout={handleLogout} 
+          currentUser={currentVolunteer} 
+          onUserUpdate={handleUserUpdate}
+          onBackToLanding={() => setCurrentView('landing')}
+        />
+        <ServerStatus />
+      </NotificationProvider>
+    );
   }
 
   if (currentView === 'volunteer-intranet' && userType === 'volunteer' && currentVolunteer) {
-    return <VolunteerIntranet volunteer={currentVolunteer} onLogout={handleLogout} onVolunteerUpdate={handleUserUpdate} />;
+    return (
+      <NotificationProvider>
+        <VolunteerLayout 
+          onLogout={handleLogout} 
+          currentUser={currentVolunteer} 
+          onUserUpdate={handleUserUpdate}
+          onBackToLanding={() => setCurrentView('landing')}
+        />
+        <ServerStatus />
+      </NotificationProvider>
+    );
+  }
+
+  if (currentView === 'user-intranet' && userType === 'user' && currentVolunteer) {
+    return (
+      <NotificationProvider>
+        <UserIntranet 
+          onLogout={handleLogout} 
+          currentUser={currentVolunteer} 
+          onUserUpdate={handleUserUpdate}
+          onBackToLanding={() => setCurrentView('landing')}
+        />
+        <ServerStatus />
+      </NotificationProvider>
+    );
   }
 
   // Fallback to landing
   return (
-    <LandingPage
-      onLoginClick={() => setCurrentView('login')}
-      onPostular={handlePostular}
-    />
+    <NotificationProvider>
+      <LandingPage
+        onLoginClick={() => setCurrentView('login')}
+        onPostular={handlePostular}
+      />
+      <ServerStatus />
+    </NotificationProvider>
   );
 }
