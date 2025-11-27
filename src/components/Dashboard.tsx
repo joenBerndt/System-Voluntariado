@@ -1,0 +1,263 @@
+import { Users, Megaphone, CheckCircle, Clock, UserCircle, UserCheck, FileText, Briefcase, FolderOpen, Calendar } from 'lucide-react';
+import { useApi } from '../hooks/useApi';
+
+interface DashboardProps {
+  currentUser?: any;
+}
+
+export function Dashboard({ currentUser }: DashboardProps) {
+  const { data: volunteersData, loading: loadingVolunteers } = useApi<any[]>('/volunteers');
+  const { data: convocatoriasData, loading: loadingConvocatorias } = useApi<any[]>('/convocatorias');
+  const { data: usersData, loading: loadingUsers } = useApi<any[]>('/users');
+  const { data: applicationsData, loading: loadingApplications } = useApi<any[]>('/applications');
+  const { data: projectsData } = useApi<any[]>('/projects');
+  const { data: areasData } = useApi<any[]>('/areas');
+
+  const volunteers = volunteersData || [];
+  const convocatorias = convocatoriasData || [];
+  const users = usersData || [];
+  const applications = applicationsData || [];
+  const projects = projectsData || [];
+  const areas = areasData || [];
+
+  const isAdminMaster = currentUser?.role === 'admin_master';
+  const isAdmin = currentUser?.role === 'admin';
+
+  // Total users count (all users in the system)
+  const totalUsers = users.length;
+
+  // Separate users by role
+  const regularUsers = users.filter(u => u.role === 'user'); // Users who can apply
+  const volunteerUsers = users.filter(u => u.role === 'volunteer'); // Active volunteers
+  const adminUsers = users.filter(u => u.role === 'admin'); // Admins
+  const adminMasterUsers = users.filter(u => u.role === 'admin_master'); // Admin masters
+
+  // Application stats
+  const pendingApplications = applications.filter(a => a.status === 'pending').length;
+  const interviewPendingApplications = applications.filter(a => a.status === 'interview_pending').length;
+  const interviewConfirmedApplications = applications.filter(a => a.status === 'interview_confirmed').length;
+  
+  // Active convocatorias
+  const activeConvocatorias = convocatorias.filter(c => c.status === 'activa').length;
+
+  // Admin Master Stats (Full Access)
+  const adminMasterStats = [
+    {
+      label: 'Usuarios Totales',
+      value: totalUsers,
+      icon: Users,
+      color: 'bg-blue-500',
+      description: 'Todos los usuarios del sistema'
+    },
+    {
+      label: 'Usuarios Registrados',
+      value: regularUsers.length,
+      icon: UserCircle,
+      color: 'bg-cyan-500',
+      description: 'Pueden postular a convocatorias'
+    },
+    {
+      label: 'Voluntarios Activos',
+      value: volunteerUsers.length,
+      icon: UserCheck,
+      color: 'bg-green-500',
+      description: 'Postulantes aceptados'
+    },
+    {
+      label: 'Postulaciones Pendientes',
+      value: pendingApplications,
+      icon: FileText,
+      color: 'bg-orange-500',
+      description: 'Esperando revisión'
+    },
+    {
+      label: 'Entrevistas Pendientes',
+      value: interviewPendingApplications,
+      icon: Calendar,
+      color: 'bg-yellow-500',
+      description: 'Entrevistas programadas'
+    },
+    {
+      label: 'Convocatorias Activas',
+      value: activeConvocatorias,
+      icon: Megaphone,
+      color: 'bg-purple-500',
+      description: 'Abiertas para postular'
+    },
+    {
+      label: 'Proyectos Totales',
+      value: projects.length,
+      icon: FolderOpen,
+      color: 'bg-indigo-500',
+      description: 'Proyectos registrados'
+    },
+    {
+      label: 'Áreas Totales',
+      value: areas.length,
+      icon: Briefcase,
+      color: 'bg-pink-500',
+      description: 'Áreas de trabajo'
+    },
+  ];
+
+  // Admin Stats (Limited Access)
+  const adminStats = [
+    {
+      label: 'Postulaciones Pendientes',
+      value: pendingApplications,
+      icon: FileText,
+      color: 'bg-orange-500',
+      description: 'Esperando revisión'
+    },
+    {
+      label: 'Voluntarios Activos',
+      value: volunteerUsers.length,
+      icon: UserCheck,
+      color: 'bg-green-500',
+      description: 'Postulantes aceptados'
+    },
+    {
+      label: 'Entrevistas Pendientes',
+      value: interviewPendingApplications,
+      icon: Calendar,
+      color: 'bg-yellow-500',
+      description: 'Entrevistas programadas'
+    },
+    {
+      label: 'Convocatorias Activas',
+      value: activeConvocatorias,
+      icon: Megaphone,
+      color: 'bg-purple-500',
+      description: 'Abiertas para postular'
+    },
+  ];
+
+  const stats = isAdminMaster ? adminMasterStats : adminStats;
+
+  const recentConvocatorias = convocatorias.slice(0, 5);
+  const recentUsers = users.slice(-5).reverse();
+
+  if (loadingVolunteers || loadingConvocatorias || loadingUsers || loadingApplications) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-500">Cargando datos...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-gray-900 mb-2">Panel de Control</h2>
+        <p className="text-gray-600">Vista general del sistema de voluntariado</p>
+      </div>
+
+      {/* Stats Grid */}
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${isAdminMaster ? 'lg:grid-cols-4' : 'lg:grid-cols-4'} gap-6`}>
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.label} className="bg-white p-6 rounded-xl border border-gray-200 hover:border-blue-300 transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <div className={`${stat.color} p-3 rounded-lg`}>
+                  <Icon className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-gray-900 text-2xl">{stat.value}</span>
+              </div>
+              <p className="text-gray-900 mb-1">{stat.label}</p>
+              <p className="text-gray-500 text-sm">{stat.description}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Application Process Stats */}
+      <div className="bg-white p-6 rounded-xl border border-gray-200">
+        <h3 className="text-gray-900 mb-4">Estado del Proceso de Postulaciones</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 bg-orange-50 rounded-lg">
+            <p className="text-orange-900 text-2xl mb-1">{interviewPendingApplications}</p>
+            <p className="text-orange-700 text-sm">Entrevistas Programadas</p>
+          </div>
+          <div className="p-4 bg-purple-50 rounded-lg">
+            <p className="text-purple-900 text-2xl mb-1">{interviewConfirmedApplications}</p>
+            <p className="text-purple-700 text-sm">Entrevistas Confirmadas</p>
+          </div>
+          <div className="p-4 bg-blue-50 rounded-lg">
+            <p className="text-blue-900 text-2xl mb-1">{projects.length}</p>
+            <p className="text-blue-700 text-sm">Proyectos Activos</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Convocatorias */}
+        <div className="bg-white p-6 rounded-xl border border-gray-200">
+          <h3 className="text-gray-900 mb-4">Convocatorias Recientes</h3>
+          <div className="space-y-3">
+            {recentConvocatorias.length > 0 ? (
+              recentConvocatorias.map((conv) => (
+                <div key={conv.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex-1">
+                    <p className="text-gray-900">{conv.title}</p>
+                    <p className="text-gray-500 text-sm">{conv.area}</p>
+                  </div>
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm ${
+                      conv.status === 'activa'
+                        ? 'bg-green-100 text-green-700'
+                        : conv.status === 'cerrada'
+                        ? 'bg-gray-100 text-gray-700'
+                        : 'bg-orange-100 text-orange-700'
+                    }`}
+                  >
+                    {conv.status === 'activa' ? 'Activa' : conv.status === 'cerrada' ? 'Cerrada' : 'En Proceso'}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-sm text-center py-4">No hay convocatorias aún</p>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Users/Volunteers */}
+        <div className="bg-white p-6 rounded-xl border border-gray-200">
+          <h3 className="text-gray-900 mb-4">Usuarios Recientes</h3>
+          <div className="space-y-3">
+            {recentUsers.length > 0 ? (
+              recentUsers.map((user) => (
+                <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      user.role === 'volunteer' ? 'bg-green-100' : 'bg-blue-100'
+                    }`}>
+                      <span className={user.role === 'volunteer' ? 'text-green-600' : 'text-blue-600'}>
+                        {user.name.charAt(0)}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-gray-900">{user.name}</p>
+                      <p className="text-gray-500 text-sm">{user.email}</p>
+                    </div>
+                  </div>
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm ${
+                      user.role === 'volunteer'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-blue-100 text-blue-700'
+                    }`}
+                  >
+                    {user.role === 'volunteer' ? 'Voluntario' : 'Usuario'}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-sm text-center py-4">No hay usuarios aún</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
