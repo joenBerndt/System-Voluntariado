@@ -10,7 +10,7 @@ import { VolunteerApplications } from './volunteer/VolunteerApplications';
 import { VolunteerInterviews } from './volunteer/VolunteerInterviews';
 import { VolunteerHistory } from './volunteer/VolunteerHistory';
 import { useApi } from '../hooks/useApi';
-import logoIIAP from 'figma:asset/30559607b1a3dc361e3c8d4f3f9460064ad9a131.png';
+import logoIIAP from '../assets/30559607b1a3dc361e3c8d4f3f9460064ad9a131.png';
 
 interface VolunteerLayoutProps {
   onLogout: () => void;
@@ -25,12 +25,12 @@ export function VolunteerLayout({ onLogout, currentUser, onUserUpdate, onBackToL
   const [currentSection, setCurrentSection] = useState<Section>('dashboard');
   const [user, setUser] = useState(currentUser);
   const [selectedConvocatoria, setSelectedConvocatoria] = useState<any>(null);
-  
+
   // Fetch projects to check if user is a manager
   const { data: projectsData } = useApi<any[]>('/projects');
   const { data: applicationsData, refetch: refetchApplications } = useApi<any[]>('/applications');
   const { data: convocatoriasData } = useApi<any[]>('/convocatorias');
-  
+
   const projects = projectsData || [];
   const applications = applicationsData || [];
   const convocatorias = convocatoriasData || [];
@@ -39,8 +39,8 @@ export function VolunteerLayout({ onLogout, currentUser, onUserUpdate, onBackToL
   const myApplications = applications.filter(app => app.userEmail === currentUser?.email);
 
   // Filter interviews
-  const myInterviews = myApplications.filter(app => 
-    app.status === 'interview_pending' || 
+  const myInterviews = myApplications.filter(app =>
+    app.status === 'interview_pending' ||
     app.status === 'interview_confirmed' ||
     (app.interviewDate && app.interviewDate !== '')
   );
@@ -53,7 +53,7 @@ export function VolunteerLayout({ onLogout, currentUser, onUserUpdate, onBackToL
   };
 
   // Check if volunteer is manager of any project
-  const isProjectManager = projects.some(p => 
+  const isProjectManager = projects.some(p =>
     p.managers && p.managers.includes(currentUser?.id)
   );
 
@@ -120,22 +120,20 @@ export function VolunteerLayout({ onLogout, currentUser, onUserUpdate, onBackToL
                 <button
                   key={item.id}
                   onClick={() => setCurrentSection(item.id)}
-                  className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
-                    currentSection === item.id
-                      ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg'
-                      : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
-                  }`}
+                  className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${currentSection === item.id
+                    ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg'
+                    : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <Icon className="w-5 h-5" />
                     <span>{item.label}</span>
                   </div>
                   {item.badge !== undefined && item.badge > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                      currentSection === item.id
-                        ? 'bg-white text-emerald-700'
-                        : 'bg-emerald-100 text-emerald-700'
-                    }`}>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${currentSection === item.id
+                      ? 'bg-white text-emerald-700'
+                      : 'bg-emerald-100 text-emerald-700'
+                      }`}>
                       {item.badge}
                     </span>
                   )}
@@ -147,29 +145,29 @@ export function VolunteerLayout({ onLogout, currentUser, onUserUpdate, onBackToL
 
         {/* Main Content */}
         <main className="flex-1 p-8">
-          {currentSection === 'dashboard' && <VolunteerDashboard currentUser={currentUser} applications={myApplications} />}
+          {currentSection === 'dashboard' && <VolunteerDashboard currentUser={currentUser} applications={myApplications} onNavigate={setCurrentSection} />}
           {currentSection === 'projects' && <VolunteerProjects currentUser={currentUser} />}
           {currentSection === 'convocatorias' && (
-            <VolunteerConvocatorias 
+            <VolunteerConvocatorias
               onSelectConvocatoria={setSelectedConvocatoria}
               currentUser={currentUser}
             />
           )}
           {currentSection === 'applications' && (
-            <VolunteerApplications 
+            <VolunteerApplications
               applications={myApplications}
               convocatorias={convocatorias}
               refetchApplications={refetchApplications}
             />
           )}
           {currentSection === 'interviews' && (
-            <VolunteerInterviews 
+            <VolunteerInterviews
               interviews={myInterviews}
               convocatorias={convocatorias}
             />
           )}
           {currentSection === 'history' && (
-            <VolunteerHistory 
+            <VolunteerHistory
               applications={myApplications}
               convocatorias={convocatorias}
             />
@@ -183,7 +181,7 @@ export function VolunteerLayout({ onLogout, currentUser, onUserUpdate, onBackToL
       {selectedConvocatoria && (
         <ApplicationModal
           convocatoria={selectedConvocatoria}
-          volunteer={currentUser}
+          currentUser={currentUser}
           onClose={() => setSelectedConvocatoria(null)}
           onSuccess={() => {
             setSelectedConvocatoria(null);

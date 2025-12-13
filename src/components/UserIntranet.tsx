@@ -4,7 +4,7 @@ import { useApi } from '../hooks/useApi';
 import { ApplicationModal } from './ApplicationModal';
 import { UnifiedProfile } from './UnifiedProfile';
 import { ApplicationProgressBar } from './ApplicationProgressBar';
-import logoIIAP from 'figma:asset/30559607b1a3dc361e3c8d4f3f9460064ad9a131.png';
+import logoIIAP from '../assets/30559607b1a3dc361e3c8d4f3f9460064ad9a131.png';
 
 interface UserIntranetProps {
   currentUser: any;
@@ -33,8 +33,8 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
   const myApplications = applicationsData?.filter(app => app.userEmail === currentUser.email) || [];
 
   // Filter interviews (applications with interview scheduled)
-  const myInterviews = myApplications.filter(app => 
-    app.status === 'interview_pending' || 
+  const myInterviews = myApplications.filter(app =>
+    app.status === 'interview_pending' ||
     app.status === 'interview_confirmed' ||
     (app.interviewDate && app.interviewDate !== '')
   );
@@ -42,7 +42,7 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
   // Get activity history
   const activityHistory = useMemo(() => {
     const history: any[] = [];
-    
+
     // Add applications to history
     myApplications.forEach(app => {
       history.push({
@@ -222,22 +222,20 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
                 <button
                   key={item.id}
                   onClick={() => setCurrentSection(item.id)}
-                  className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
-                    currentSection === item.id
+                  className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${currentSection === item.id
                       ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg'
                       : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <Icon className="w-5 h-5" />
                     {item.label}
                   </div>
                   {item.badge !== undefined && item.badge > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                      currentSection === item.id
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${currentSection === item.id
                         ? 'bg-white text-emerald-700'
                         : 'bg-emerald-100 text-emerald-700'
-                    }`}>
+                      }`}>
                       {item.badge}
                     </span>
                   )}
@@ -526,9 +524,8 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
                     return (
                       <div
                         key={convocatoria.id}
-                        className={`bg-white rounded-xl shadow-md p-6 border-2 transition-all duration-200 hover:shadow-lg ${
-                          isClosingSoon ? 'border-amber-300 bg-amber-50' : 'border-gray-100 hover:border-emerald-200'
-                        }`}
+                        className={`bg-white rounded-xl shadow-md p-6 border-2 transition-all duration-200 hover:shadow-lg ${isClosingSoon ? 'border-amber-300 bg-amber-50' : 'border-gray-100 hover:border-emerald-200'
+                          }`}
                       >
                         {isClosingSoon && (
                           <div className="mb-3 px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-sm font-semibold inline-flex items-center gap-2">
@@ -538,7 +535,7 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
                         )}
 
                         <h3 className="text-gray-900 mb-3">{convocatoria.title}</h3>
-                        
+
                         <div className="space-y-2 mb-4">
                           <div className="flex items-center gap-2 text-sm text-gray-600">
                             <MapPin className="w-4 h-4 text-emerald-600" />
@@ -625,15 +622,14 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
                     return (
                       <div
                         key={interview.id}
-                        className={`bg-white rounded-xl shadow-md p-6 border-2 transition-all ${
-                          isToday
+                        className={`bg-white rounded-xl shadow-md p-6 border-2 transition-all ${isToday
                             ? 'border-amber-300 bg-amber-50'
                             : isSoon
-                            ? 'border-emerald-300 bg-emerald-50'
-                            : isPast
-                            ? 'border-gray-200 bg-gray-50'
-                            : 'border-gray-200'
-                        }`}
+                              ? 'border-emerald-300 bg-emerald-50'
+                              : isPast
+                                ? 'border-gray-200 bg-gray-50'
+                                : 'border-gray-200'
+                          }`}
                       >
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex-1">
@@ -659,11 +655,10 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
                         </div>
 
                         {interviewDate && (
-                          <div className={`p-4 rounded-lg border mb-4 ${
-                            isToday
+                          <div className={`p-4 rounded-lg border mb-4 ${isToday
                               ? 'bg-amber-100 border-amber-200'
                               : 'bg-gray-50 border-gray-200'
-                          }`}>
+                            }`}>
                             <p className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
                               <CheckCircle className="w-4 h-4 text-emerald-600" />
                               Detalles de la Entrevista
@@ -706,25 +701,21 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
                         )}
 
                         {(isToday || isSoon) && !isPast && (
-                          <div className={`p-3 rounded-lg flex items-start gap-2 ${
-                            isToday
+                          <div className={`p-3 rounded-lg flex items-start gap-2 ${isToday
                               ? 'bg-amber-100 border border-amber-300'
                               : 'bg-emerald-50 border border-emerald-200'
-                          }`}>
-                            <Clock className={`w-5 h-5 mt-0.5 ${
-                              isToday ? 'text-amber-600' : 'text-emerald-600'
-                            }`} />
+                            }`}>
+                            <Clock className={`w-5 h-5 mt-0.5 ${isToday ? 'text-amber-600' : 'text-emerald-600'
+                              }`} />
                             <div className="flex-1">
-                              <p className={`text-sm font-medium ${
-                                isToday ? 'text-amber-900' : 'text-emerald-900'
-                              }`}>
+                              <p className={`text-sm font-medium ${isToday ? 'text-amber-900' : 'text-emerald-900'
+                                }`}>
                                 {isToday
                                   ? '¡Recuerda tu entrevista hoy!'
                                   : 'Prepárate para tu entrevista'}
                               </p>
-                              <p className={`text-sm mt-1 ${
-                                isToday ? 'text-amber-700' : 'text-emerald-700'
-                              }`}>
+                              <p className={`text-sm mt-1 ${isToday ? 'text-amber-700' : 'text-emerald-700'
+                                }`}>
                                 {isToday
                                   ? 'Asegúrate de llegar 10 minutos antes. Revisa la ubicación y trae los documentos necesarios.'
                                   : 'Revisa los detalles de tu entrevista y prepara tus documentos con anticipación.'}
@@ -838,8 +829,8 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
 
           {/* MI PERFIL */}
           {currentSection === 'profile' && (
-            <UnifiedProfile 
-              user={currentUser} 
+            <UnifiedProfile
+              user={currentUser}
               onUpdate={(updatedUser) => {
                 // Update current user in parent component if needed
                 if (onUserUpdate) {

@@ -12,14 +12,14 @@ export function ConvocatoriaModal({ convocatoria, onClose, onSave }: Convocatori
   const { data: projectsData } = useApi<any[]>('/projects');
   const { data: areasData } = useApi<any[]>('/areas');
   const { data: usersData } = useApi<any[]>('/users');
-  
+
   const projects = projectsData || [];
   const areas = areasData || [];
   const users = usersData || [];
-  
+
   // Filter only Admin and Admin Master users for the dropdown
   const adminUsers = users.filter(u => u.role === 'admin' || u.role === 'admin_master');
-  
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -73,7 +73,7 @@ export function ConvocatoriaModal({ convocatoria, onClose, onSave }: Convocatori
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
       <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-gray-900">
@@ -120,7 +120,7 @@ export function ConvocatoriaModal({ convocatoria, onClose, onSave }: Convocatori
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Seleccionar proyecto</option>
-                {projects.map(project => (
+                {projects.filter(p => p.status === 'activo').map(project => (
                   <option key={project.id} value={project.id}>{project.name}</option>
                 ))}
               </select>
@@ -187,7 +187,7 @@ export function ConvocatoriaModal({ convocatoria, onClose, onSave }: Convocatori
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="activa">Activa</option>
-              <option value="en_proceso">En Proceso</option>
+              <option value="en_proceso">Sin Publicar</option>
               <option value="cerrada">Cerrada</option>
             </select>
           </div>

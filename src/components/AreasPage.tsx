@@ -3,7 +3,8 @@ import { useApi } from '../hooks/useApi';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 
 interface AreasPageProps {
-  onNavigate: (page: 'home' | 'areas' | 'about') => void;
+  onNavigate: (page: 'home' | 'areas' | 'about' | 'projects') => void;
+  onSelectArea?: (areaId: string) => void;
 }
 
 const iconMap: Record<string, any> = {
@@ -25,7 +26,7 @@ const colorSchemes = [
   { from: 'from-emerald-600', to: 'to-green-700', bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200' },
 ];
 
-export function AreasPage({ onNavigate }: AreasPageProps) {
+export function AreasPage({ onNavigate, onSelectArea }: AreasPageProps) {
   const { data: areasData, loading } = useApi<any[]>('/areas');
   const areas = areasData || [];
   const publishedAreas = areas.filter(a => a.published);
@@ -56,17 +57,22 @@ export function AreasPage({ onNavigate }: AreasPageProps) {
             {publishedAreas.map((area, index) => {
               const Icon = iconMap[area.icon] || Leaf;
               const colorScheme = colorSchemes[index % colorSchemes.length];
-              
+
               return (
                 <div
                   key={area.id}
-                  className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-gray-100 hover:border-emerald-200"
+                  onClick={() => {
+                    if (onSelectArea) {
+                      onSelectArea(area.id);
+                    }
+                  }}
+                  className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-gray-100 hover:border-emerald-200 cursor-pointer"
                 >
                   {/* Image Header */}
-                  {area.imageUrl ? (
+                  {(area.imageUrl || area.image_url) ? (
                     <div className="relative h-48 overflow-hidden">
                       <ImageWithFallback
-                        src={area.imageUrl}
+                        src={area.imageUrl || area.image_url}
                         alt={area.name}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                       />
@@ -90,7 +96,7 @@ export function AreasPage({ onNavigate }: AreasPageProps) {
                     <p className="text-gray-600 leading-relaxed mb-4">
                       {area.description}
                     </p>
-                    
+
                     <div className={`inline-flex items-center gap-2 text-sm font-semibold ${colorScheme.text} group-hover:gap-3 transition-all`}>
                       <span>Explorar área</span>
                       <ArrowRight className="w-4 h-4" />

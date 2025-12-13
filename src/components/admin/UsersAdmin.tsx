@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, UserCircle, UserCheck, Crown, Users as UsersIcon, Shield, ChevronUp, ChevronDown, Trash2, Mail, Phone, MapPin, AlertTriangle, X, FolderOpen, Megaphone } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, UserCircle, UserCheck, Crown, Users as UsersIcon, Shield, ChevronUp, ChevronDown, Trash2, Mail, Phone, MapPin, AlertTriangle, X, FolderOpen, Megaphone, Key, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApi, apiPut, apiDelete } from '../../hooks/useApi';
 import { LoadingSpinner } from '../LoadingOverlay';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -19,33 +19,53 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
     action: 'demote' | 'delete';
     newRole?: string;
   } | null>(null);
-  
+
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(7);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerHeight > 900) setItemsPerPage(9);
+      else setItemsPerPage(7);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const { showSuccess, showError, showWarning, showLoading, hideNotification } = useNotifications();
-  
+
   const { data: usersData, loading, refetch } = useApi<any[]>('/users');
   const { data: projectsData, refetch: refetchProjects } = useApi<any[]>('/projects');
   const { data: convocatoriasData, refetch: refetchConvocatorias } = useApi<any[]>('/convocatorias');
-  
+
   const users = usersData || [];
   const projects = projectsData || [];
   const convocatorias = convocatoriasData || [];
 
   const filteredUsers = users.filter((user) => {
-    const matchesSearch = 
+    const matchesSearch =
       user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.area?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesRole = filterRole === 'all' || user.role === filterRole;
-    
+
     return matchesSearch && matchesRole;
   });
+
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handlePromote = async (userId: string, currentRole: string) => {
     if (!window.confirm('¿Estás seguro de que deseas promover a este usuario?')) return;
 
     let newRole = currentRole;
-    
+
     // Promotion hierarchy: user → volunteer → admin → admin_master
     if (currentRole === 'user') newRole = 'volunteer';
     else if (currentRole === 'volunteer') newRole = 'admin';
@@ -67,6 +87,10 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
         `${user.name} ahora es ${newRole === 'volunteer' ? 'Voluntario' : newRole === 'admin' ? 'Administrador' : 'Administrador Master'}`
       );
       refetch();
+      // Update selectedUser if it's the one being modified
+      if (selectedUser && selectedUser.id === userId) {
+        setSelectedUser({ ...selectedUser, role: newRole });
+      }
     } catch (err) {
       console.error('Error promoting user:', err);
       hideNotification(loadingId);
@@ -76,7 +100,7 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
 
   const handleDemote = async (userId: string, currentRole: string) => {
     let newRole = currentRole;
-    
+
     // Demotion hierarchy: admin_master → admin → volunteer → user
     if (currentRole === 'admin_master') newRole = 'admin';
     else if (currentRole === 'admin') newRole = 'volunteer';
@@ -88,7 +112,7 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
 
     // Check if user has assigned projects or convocatorias
     const user = users.find(u => u.id === userId);
-    const userProjects = projects.filter(p => 
+    const userProjects = projects.filter(p =>
       p.managers && Array.isArray(p.managers) && p.managers.includes(userId)
     );
     const userConvocatorias = convocatorias.filter(c => c.responsable === user?.email);
@@ -106,9 +130,9 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
     } else {
       // No assignments, proceed with demotion
       if (!window.confirm('¿Estás seguro de que deseas degradar a este usuario?')) return;
-      
+
       const loadingId = showLoading('Degradando usuario...', 'Actualizando rol en el sistema');
-      
+
       try {
         await apiPut(`/users/${userId}/role`, { role: newRole });
         hideNotification(loadingId);
@@ -117,6 +141,10 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
           `El rol ha sido actualizado a ${newRole === 'user' ? 'Usuario' : newRole === 'volunteer' ? 'Voluntario' : 'Administrador'}`
         );
         refetch();
+        // Update selectedUser if it's the one being modified
+        if (selectedUser && selectedUser.id === userId) {
+          setSelectedUser({ ...selectedUser, role: newRole });
+        }
       } catch (err) {
         console.error('Error demoting user:', err);
         hideNotification(loadingId);
@@ -134,7 +162,7 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
 
     // Check if user has assigned projects or convocatorias
     const user = users.find(u => u.id === userId);
-    const userProjects = projects.filter(p => 
+    const userProjects = projects.filter(p =>
       p.managers && Array.isArray(p.managers) && p.managers.includes(userId)
     );
     const userConvocatorias = convocatorias.filter(c => c.responsable === user?.email);
@@ -164,6 +192,32 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
         hideNotification(loadingId);
         showError('Error al eliminar', 'No se pudo eliminar el usuario');
       }
+    }
+  };
+
+  const handleResetPassword = async (user: any) => {
+    if (currentUser?.role !== 'admin_master') {
+      showWarning('Acceso denegado', 'Solo el Administrador Maestro puede restablecer contraseñas.');
+      return;
+    }
+
+    let defaultPassword = 'user123';
+    if (user.role === 'admin') defaultPassword = 'admin123';
+    else if (user.role === 'volunteer') defaultPassword = 'volunteer123';
+
+    if (!window.confirm(`¿Estás seguro de restablecer la contraseña para ${user.name}?\n\nLa nueva contraseña será: ${defaultPassword}`)) {
+      return;
+    }
+
+    const loadingId = showLoading('Restableciendo contraseña...', 'Por favor espera');
+    try {
+      await apiPut(`/users/${user.id}`, { password: defaultPassword });
+      hideNotification(loadingId);
+      showSuccess('Contraseña restablecida', `La contraseña se ha actualizado a: ${defaultPassword}`);
+    } catch (err) {
+      hideNotification(loadingId);
+      showError('Error', 'No se pudo restablecer la contraseña');
+      console.error(err);
     }
   };
 
@@ -208,6 +262,10 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
           'Operación completada',
           'Usuario removido de sus asignaciones y degradado exitosamente'
         );
+        // Update selectedUser role
+        if (selectedUser && selectedUser.id === user.id) {
+          setSelectedUser({ ...selectedUser, role: newRole });
+        }
       } else if (action === 'delete') {
         await apiDelete(`/users/${user.id}`);
         hideNotification(loadingId);
@@ -275,7 +333,7 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <LoadingSpinner size="large" />
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -283,17 +341,25 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-gray-900">Gestión de Usuarios</h2>
-          <p className="text-gray-600">Administra roles y permisos de todos los usuarios del sistema</p>
-        </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-lg">
-          <UsersIcon className="w-5 h-5 text-purple-700" />
-          <span className="font-bold text-purple-900">{users.length} Usuarios</span>
+        <h2 className="text-gray-900">Gestión de Usuarios</h2>
+        <div className="flex items-center gap-2 text-sm flex-wrap">
+          {/* Stats Chips */}
+          <span className="px-3 py-1 bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 text-gray-700 rounded-full font-medium shadow-sm">
+            {users.filter(u => u.role === 'user').length} Usuarios
+          </span>
+          <span className="px-3 py-1 bg-gradient-to-r from-emerald-50 to-emerald-100 border border-emerald-200 text-emerald-800 rounded-full font-medium shadow-sm">
+            {users.filter(u => u.role === 'volunteer').length} Voluntarios
+          </span>
+          <span className="px-3 py-1 bg-gradient-to-r from-teal-50 to-teal-100 border border-teal-200 text-teal-800 rounded-full font-medium shadow-sm">
+            {users.filter(u => u.role === 'admin').length} Admins
+          </span>
+          <span className="px-3 py-1 bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 text-purple-800 rounded-full font-medium shadow-sm">
+            {users.filter(u => u.role === 'admin_master').length} Admin Master
+          </span>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters (Adapted style) */}
       <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="relative">
@@ -303,14 +369,14 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
               placeholder="Buscar por nombre, email o área..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
-          
+
           <select
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
-            className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
           >
             <option value="all">Todos los roles</option>
             <option value="user">Usuarios</option>
@@ -321,132 +387,236 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
         </div>
       </div>
 
-      {/* Role Hierarchy Info */}
-      <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-xl p-4">
-        <div className="flex items-start gap-3">
-          <div className="bg-amber-100 p-2 rounded-lg">
-            <Shield className="w-5 h-5 text-amber-700" />
+      {/* Split View */}
+      {filteredUsers.length > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          {/* Left: List */}
+          <div className="space-y-4">
+            <div className="overflow-hidden border border-gray-200 rounded-xl shadow-sm bg-white">
+              <table className="w-full text-left text-sm text-gray-600">
+                <thead className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <tr>
+                    <th className="px-4 py-3 w-12 text-center">#</th>
+                    <th className="px-4 py-3">Usuario</th>
+                    <th className="px-4 py-3 text-center">Rol</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {paginatedUsers.map((user, index) => {
+                    const roleInfo = getRoleInfo(user.role);
+                    const isSelected = selectedUser?.id === user.id;
+                    const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+
+                    return (
+                      <tr
+                        key={user.id}
+                        onClick={() => setSelectedUser(user)}
+                        className={`cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                      >
+                        <td className="px-4 py-3 text-center font-mono text-xs text-gray-400">
+                          {String(globalIndex).padStart(2, '0')}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900 truncate text-sm">{user.name}</p>
+                            <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${roleInfo.badgeColor}`}>
+                            {roleInfo.label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 px-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <span className="text-sm text-gray-600 font-medium">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            )}
           </div>
-          <div>
-            <h4 className="text-amber-900 font-bold mb-1">Jerarquía de Roles</h4>
-            <p className="text-amber-800 text-sm mb-2">
-              Los usuarios pueden ser promovidos o degradados siguiendo esta jerarquía:
-            </p>
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <span className="px-3 py-1 bg-gray-100 text-gray-800 border border-gray-200 rounded-lg">Usuario</span>
-              <span className="text-amber-600">→</span>
-              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg">Voluntario</span>
-              <span className="text-amber-600">→</span>
-              <span className="px-3 py-1 bg-teal-100 text-teal-800 border border-teal-200 rounded-lg">Admin</span>
-              <span className="text-amber-600">→</span>
-              <span className="px-3 py-1 bg-purple-100 text-purple-800 border border-purple-200 rounded-lg">Admin Master</span>
+
+          {/* Right: Details (User Card) */}
+          <div className="lg:sticky lg:top-6">
+            {selectedUser ? (
+              (() => {
+                const user = selectedUser;
+                const roleInfo = getRoleInfo(user.role);
+                const RoleIcon = roleInfo.icon;
+                const isCurrentUser = user.id === currentUser?.id;
+
+                return (
+                  <div className={`${roleInfo.bgColor} p-6 rounded-xl border-2 ${roleInfo.borderColor} shadow-xl relative overflow-hidden`}>
+                    {/* Original Card Content logic here */}
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-4 relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-14 h-14 bg-gradient-to-br ${roleInfo.color} rounded-full flex items-center justify-center shadow-lg border-2 border-white`}>
+                          <span className="text-white font-bold text-xl">{user.name?.charAt(0).toUpperCase()}</span>
+                        </div>
+                        <div>
+                          <h4 className={`${roleInfo.textColor} font-bold text-lg`}>{user.name}</h4>
+                          <span className={`text-xs px-2.5 py-1 rounded-full border font-semibold ${roleInfo.badgeColor} mt-1 inline-block`}>
+                            {roleInfo.label}
+                          </span>
+                        </div>
+                      </div>
+                      {isCurrentUser && (
+                        <span className="px-2 py-1 bg-amber-200 text-amber-900 text-xs rounded-full font-bold border border-amber-300 shadow-sm">
+                          TÚ
+                        </span>
+                      )}
+                      <button onClick={() => setSelectedUser(null)} className="lg:hidden text-gray-500 hover:text-gray-700">
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+
+                    {/* User Info */}
+                    <div className="space-y-3 mb-6 bg-white/60 p-4 rounded-xl backdrop-blur-sm relative z-10">
+                      <div className="flex items-center gap-3 text-gray-700">
+                        <div className="bg-emerald-100 p-2 rounded-lg">
+                          <Mail className="w-4 h-4 text-emerald-600" />
+                        </div>
+                        <span className="text-sm font-medium">{user.email}</span>
+                      </div>
+                      {user.phone && (
+                        <div className="flex items-center gap-3 text-gray-700">
+                          <div className="bg-teal-100 p-2 rounded-lg">
+                            <Phone className="w-4 h-4 text-teal-600" />
+                          </div>
+                          <span className="text-sm font-medium">{user.phone}</span>
+                        </div>
+                      )}
+                      {user.area && (
+                        <div className="flex items-center gap-3 text-gray-700">
+                          <div className="bg-purple-100 p-2 rounded-lg">
+                            <MapPin className="w-4 h-4 text-purple-600" />
+                          </div>
+                          <span className="text-sm font-medium">{user.area}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Role Icon Watermark */}
+                    <div className="absolute -bottom-6 -right-6 opacity-10 pointer-events-none">
+                      <RoleIcon className={`w-48 h-48 ${roleInfo.textColor}`} />
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-col gap-3 pt-4 border-t-2 border-white/50 relative z-10">
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handlePromote(user.id, user.role)}
+                          disabled={user.role === 'admin_master' || isCurrentUser}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold shadow-md active:scale-95 transform transition-transform"
+                          title="Promover usuario"
+                        >
+                          <ChevronUp className="w-5 h-5" />
+                          <span className="text-sm">Promover</span>
+                        </button>
+                        <button
+                          onClick={() => handleDemote(user.id, user.role)}
+                          disabled={user.role === 'user' || isCurrentUser}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-amber-600 text-white rounded-xl hover:bg-amber-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold shadow-md active:scale-95 transform transition-transform"
+                          title="Degradar usuario"
+                        >
+                          <ChevronDown className="w-5 h-5" />
+                          <span className="text-sm">Degradar</span>
+                        </button>
+                      </div>
+
+                      {currentUser?.role === 'admin_master' && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            onClick={() => handleResetPassword(user)}
+                            className="flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-semibold shadow-md active:scale-95 transform transition-transform"
+                            title="Restablecer contraseña a valor por defecto"
+                          >
+                            <Key className="w-4 h-4" />
+                            <span className="text-xs">Nueva Contraseña</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(user.id)}
+                            disabled={isCurrentUser}
+                            className="flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold shadow-md active:scale-95 transform transition-transform"
+                            title="Eliminar usuario"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span className="text-xs">Eliminar Usuario</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {isCurrentUser && (
+                      <p className="mt-4 text-xs text-amber-900/70 text-center font-bold uppercase tracking-wider">
+                        No puedes modificar tu propia cuenta
+                      </p>
+                    )}
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="bg-white rounded-xl border-2 border-gray-200 p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
+                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+                  <UserCircle className="w-10 h-10 text-gray-400" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Detalles del Usuario</h3>
+                <p className="text-gray-500 max-w-xs mx-auto">Selecciona un usuario de la lista para ver su información, rol y gestionar permisos.</p>
+              </div>
+            )}
+
+            {/* Role Hierarchy Info (Below Card) */}
+            <div className="mt-6 bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="bg-amber-100 p-2 rounded-lg shrink-0">
+                  <Shield className="w-5 h-5 text-amber-700" />
+                </div>
+                <div>
+                  <h4 className="text-amber-900 font-bold mb-1">Jerarquía de Roles</h4>
+                  <p className="text-amber-800 text-sm mb-2">
+                    Los usuarios pueden ser promovidos o degradados siguiendo esta jerarquía:
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                    <span className="px-3 py-1 bg-gray-100 text-gray-800 border border-gray-200 rounded-lg">Usuario</span>
+                    <span className="text-amber-600">→</span>
+                    <span className="px-3 py-1 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg">Voluntario</span>
+                    <span className="text-amber-600">→</span>
+                    <span className="px-3 py-1 bg-teal-100 text-teal-800 border border-teal-200 rounded-lg">Admin</span>
+                    <span className="text-amber-600">→</span>
+                    <span className="px-3 py-1 bg-purple-100 text-purple-800 border border-purple-200 rounded-lg">Admin Master</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Users List */}
-      {filteredUsers.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredUsers.map((user) => {
-            const roleInfo = getRoleInfo(user.role);
-            const RoleIcon = roleInfo.icon;
-            const isCurrentUser = user.id === currentUser?.id;
-
-            return (
-              <div
-                key={user.id}
-                className={`${roleInfo.bgColor} p-6 rounded-xl border-2 ${roleInfo.borderColor} shadow-md hover:shadow-lg transition-all ${
-                  isCurrentUser ? 'ring-4 ring-amber-300' : ''
-                }`}
-              >
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 bg-gradient-to-br ${roleInfo.color} rounded-full flex items-center justify-center shadow-lg`}>
-                      <span className="text-white font-bold text-lg">{user.name?.charAt(0).toUpperCase()}</span>
-                    </div>
-                    <div>
-                      <h4 className={`${roleInfo.textColor} font-bold`}>{user.name}</h4>
-                      <span className={`text-xs px-2 py-1 rounded-full border font-semibold ${roleInfo.badgeColor}`}>
-                        {roleInfo.label}
-                      </span>
-                    </div>
-                  </div>
-                  {isCurrentUser && (
-                    <span className="px-2 py-1 bg-amber-200 text-amber-900 text-xs rounded-full font-bold border border-amber-300">
-                      TÚ
-                    </span>
-                  )}
-                </div>
-
-                {/* User Info */}
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-gray-700">
-                    <Mail className="w-4 h-4 text-emerald-600" />
-                    <span className="text-sm truncate">{user.email}</span>
-                  </div>
-                  {user.phone && (
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Phone className="w-4 h-4 text-teal-600" />
-                      <span className="text-sm">{user.phone}</span>
-                    </div>
-                  )}
-                  {user.area && (
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <MapPin className="w-4 h-4 text-purple-600" />
-                      <span className="text-sm">{user.area}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Role Icon */}
-                <div className="mb-4 p-3 bg-white/50 rounded-lg border border-white flex items-center justify-center">
-                  <RoleIcon className={`w-8 h-8 ${roleInfo.textColor}`} />
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2 pt-4 border-t-2 border-white">
-                  <button
-                    onClick={() => handlePromote(user.id, user.role)}
-                    disabled={user.role === 'admin_master' || isCurrentUser}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
-                    title="Promover usuario"
-                  >
-                    <ChevronUp className="w-4 h-4" />
-                    <span className="text-xs">Promover</span>
-                  </button>
-                  <button
-                    onClick={() => handleDemote(user.id, user.role)}
-                    disabled={user.role === 'user' || isCurrentUser}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
-                    title="Degradar usuario"
-                  >
-                    <ChevronDown className="w-4 h-4" />
-                    <span className="text-xs">Degradar</span>
-                  </button>
-                  <button
-                    onClick={() => handleDelete(user.id)}
-                    disabled={isCurrentUser}
-                    className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                    title="Eliminar usuario"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {isCurrentUser && (
-                  <p className="mt-3 text-xs text-amber-800 text-center font-semibold">
-                    No puedes modificar tu propia cuenta
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
       ) : (
-        <div className="text-center py-12 bg-white rounded-xl border-2 border-gray-200 shadow-sm">
-          <UsersIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+        <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+          <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-600">
             {searchTerm || filterRole !== 'all'
               ? 'No se encontraron usuarios con esos filtros'
@@ -454,30 +624,6 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
           </p>
         </div>
       )}
-
-      {/* Stats Footer */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200 rounded-lg p-4 text-center">
-          <UserCircle className="w-6 h-6 text-gray-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-gray-900">{users.filter(u => u.role === 'user').length}</p>
-          <p className="text-sm text-gray-700 font-medium">Usuarios</p>
-        </div>
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-200 rounded-lg p-4 text-center">
-          <UserCheck className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-emerald-900">{users.filter(u => u.role === 'volunteer').length}</p>
-          <p className="text-sm text-emerald-700 font-medium">Voluntarios</p>
-        </div>
-        <div className="bg-gradient-to-br from-teal-50 to-teal-100 border-2 border-teal-200 rounded-lg p-4 text-center">
-          <Shield className="w-6 h-6 text-teal-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-teal-900">{users.filter(u => u.role === 'admin').length}</p>
-          <p className="text-sm text-teal-700 font-medium">Admins</p>
-        </div>
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-lg p-4 text-center">
-          <Crown className="w-6 h-6 text-purple-600 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-purple-900">{users.filter(u => u.role === 'admin_master').length}</p>
-          <p className="text-sm text-purple-700 font-medium">Admin Master</p>
-        </div>
-      </div>
 
       {/* Assignments Modal */}
       {showAssignmentsModal && assignmentsData && (
@@ -517,7 +663,7 @@ export function UsersAdmin({ currentUser }: UsersAdminProps) {
                       No se puede {assignmentsData.action === 'demote' ? 'degradar' : 'eliminar'} al usuario directamente
                     </p>
                     <p className="text-amber-800 text-sm leading-relaxed">
-                      El usuario <span className="font-bold">{assignmentsData.user.name}</span> está asignado como encargado de {assignmentsData.projects.length} proyecto(s) y {assignmentsData.convocatorias.length} convocatoria(s). 
+                      El usuario <span className="font-bold">{assignmentsData.user.name}</span> está asignado como encargado de {assignmentsData.projects.length} proyecto(s) y {assignmentsData.convocatorias.length} convocatoria(s).
                       Debe ser removido de todas sus asignaciones antes de continuar.
                     </p>
                   </div>

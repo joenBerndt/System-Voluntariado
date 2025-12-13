@@ -148,9 +148,8 @@ export function VolunteerConvocatorias({ onSelectConvocatoria, currentUser }: Vo
             return (
               <div
                 key={convocatoria.id}
-                className={`bg-white rounded-xl shadow-md p-6 border-2 transition-all duration-200 hover:shadow-lg ${
-                  isClosingSoon ? 'border-amber-300 bg-amber-50' : 'border-gray-100 hover:border-emerald-200'
-                }`}
+                className={`bg-white rounded-xl shadow-md p-6 border-2 transition-all duration-200 hover:shadow-lg ${isClosingSoon ? 'border-amber-300 bg-amber-50' : 'border-gray-100 hover:border-emerald-200'
+                  }`}
               >
                 {isClosingSoon && (
                   <div className="mb-3 px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-sm font-semibold inline-flex items-center gap-2">
@@ -160,7 +159,7 @@ export function VolunteerConvocatorias({ onSelectConvocatoria, currentUser }: Vo
                 )}
 
                 <h3 className="text-gray-900 mb-3">{convocatoria.title}</h3>
-                
+
                 <div className="space-y-2 mb-4">
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <MapPin className="w-4 h-4 text-emerald-600" />
@@ -176,7 +175,7 @@ export function VolunteerConvocatorias({ onSelectConvocatoria, currentUser }: Vo
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Users className="w-4 h-4 text-emerald-600" />
-                    <span>{convocatoria.vacancies - (convocatoria.acceptedVolunteers || 0)} vacantes disponibles</span>
+                    <span>{convocatoria.vacancies - (convocatoria.acceptedCount || 0)} vacantes disponibles</span>
                   </div>
                 </div>
 
@@ -198,10 +197,10 @@ export function VolunteerConvocatorias({ onSelectConvocatoria, currentUser }: Vo
                 ) : (
                   <button
                     onClick={() => onSelectConvocatoria(convocatoria)}
-                    disabled={convocatoria.vacancies - (convocatoria.acceptedVolunteers || 0) <= 0}
+                    disabled={convocatoria.vacancies - (convocatoria.acceptedCount || 0) <= 0}
                     className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-4 py-2.5 rounded-lg hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-md hover:shadow-lg disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed font-semibold"
                   >
-                    {convocatoria.vacancies - (convocatoria.acceptedVolunteers || 0) <= 0
+                    {convocatoria.vacancies - (convocatoria.acceptedCount || 0) <= 0
                       ? 'Sin Vacantes'
                       : 'Postular Ahora'}
                   </button>

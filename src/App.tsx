@@ -72,7 +72,7 @@ export default function App() {
       const result = await response.json();
       if (result.success && result.data) {
         setCurrentVolunteer(result.data);
-        
+
         // Check user role and set view accordingly
         if (result.data.role === 'admin_master' || result.data.role === 'admin') {
           localStorage.setItem('iiap_admin_auth', 'true');
@@ -100,66 +100,41 @@ export default function App() {
   };
 
   const handleLogin = async (email: string, password: string) => {
-    // Check for hardcoded admin credentials
-    if (email === 'admin@iiap.org' && password === 'admin123') {
-      const adminUser = {
-        id: 'admin-master-001',
-        name: 'Administrador Master',
-        email: 'admin@iiap.org',
-        role: 'admin_master',
-        phone: '+51 065 265515',
-        area: 'Administración General',
-      };
-      
-      localStorage.setItem('iiap_admin_auth', 'true');
-      localStorage.setItem('iiap_volunteer_email', email);
-      setCurrentVolunteer(adminUser);
-      setUserType('admin');
-      setCurrentView('admin');
-      setLoginError('');
-      return;
-    }
-
-    // Otherwise, check database for user
     try {
-      const response = await fetch(`${API_URL}/user-auth/${email}`, {
+      const response = await fetch(`${API_URL}/login`, {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${publicAnonKey}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ email, password }),
       });
+
       const result = await response.json();
 
       if (result.success && result.data) {
-        // Check password (stored in localStorage for this demo)
-        const storedPassword = localStorage.getItem(`user_pass_${email}`);
-        if (storedPassword === password) {
-          localStorage.setItem('iiap_volunteer_email', email);
-          setCurrentVolunteer(result.data);
-          
-          // Set view based on role
-          if (result.data.role === 'admin' || result.data.role === 'admin_master') {
-            localStorage.setItem('iiap_admin_auth', 'true');
-            setUserType('admin');
-            setCurrentView('admin');
-          } else if (result.data.role === 'volunteer') {
-            setUserType('volunteer');
-            setCurrentView('volunteer-intranet');
-          } else if (result.data.role === 'user') {
-            // Regular users go to their own intranet
-            setUserType('user');
-            setCurrentView('user-intranet');
-          } else {
-            // Fallback for unknown roles
-            setUserType(null);
-            setCurrentView('landing');
-          }
-          
-          setLoginError('');
+        localStorage.setItem('iiap_volunteer_email', email);
+        setCurrentVolunteer(result.data);
+
+        // Set view based on role
+        if (result.data.role === 'admin' || result.data.role === 'admin_master') {
+          localStorage.setItem('iiap_admin_auth', 'true');
+          setUserType('admin');
+          setCurrentView('admin');
+        } else if (result.data.role === 'volunteer') {
+          setUserType('volunteer');
+          setCurrentView('volunteer-intranet');
+        } else if (result.data.role === 'user') {
+          setUserType('user');
+          setCurrentView('user-intranet');
         } else {
-          throw new Error('Contraseña incorrecta');
+          setUserType(null);
+          setCurrentView('landing');
         }
+
+        setLoginError('');
       } else {
-        throw new Error('Email no registrado');
+        throw new Error(result.error || 'Credenciales incorrectas');
       }
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Error al iniciar sesión');
@@ -250,7 +225,7 @@ export default function App() {
       <NotificationProvider>
         <RegisterPage
           onBack={() => setCurrentView('login')}
-        onSuccess={() => setCurrentView('login')}
+          onSuccess={() => setCurrentView('login')}
         />
       </NotificationProvider>
     );
@@ -259,9 +234,9 @@ export default function App() {
   if (currentView === 'admin' && (userType === 'admin' || userType === 'admin_master')) {
     return (
       <NotificationProvider>
-        <AdminLayout 
-          onLogout={handleLogout} 
-          currentUser={currentVolunteer} 
+        <AdminLayout
+          onLogout={handleLogout}
+          currentUser={currentVolunteer}
           onUserUpdate={handleUserUpdate}
           onBackToLanding={() => setCurrentView('landing')}
         />
@@ -273,9 +248,9 @@ export default function App() {
   if (currentView === 'volunteer-intranet' && userType === 'volunteer' && currentVolunteer) {
     return (
       <NotificationProvider>
-        <VolunteerLayout 
-          onLogout={handleLogout} 
-          currentUser={currentVolunteer} 
+        <VolunteerLayout
+          onLogout={handleLogout}
+          currentUser={currentVolunteer}
           onUserUpdate={handleUserUpdate}
           onBackToLanding={() => setCurrentView('landing')}
         />
@@ -287,9 +262,9 @@ export default function App() {
   if (currentView === 'user-intranet' && userType === 'user' && currentVolunteer) {
     return (
       <NotificationProvider>
-        <UserIntranet 
-          onLogout={handleLogout} 
-          currentUser={currentVolunteer} 
+        <UserIntranet
+          onLogout={handleLogout}
+          currentUser={currentVolunteer}
           onUserUpdate={handleUserUpdate}
           onBackToLanding={() => setCurrentView('landing')}
         />

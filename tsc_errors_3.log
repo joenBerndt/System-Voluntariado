@@ -1,0 +1,5 @@
+src/components/admin/UsersAdmin.tsx(278,25): error TS2322: Type '"large"' is not assignable to type '"sm" | "md" | "lg"'.
+src/components/LoginPage.tsx(40,65): error TS2322: Type '{ message: string; subtitle: string; }' is not assignable to type 'IntrinsicAttributes & LoadingOverlayProps'.
+  Property 'subtitle' does not exist on type 'IntrinsicAttributes & LoadingOverlayProps'.
+src/components/RegisterPage.tsx(87,66): error TS2322: Type '{ message: string; subtitle: string; }' is not assignable to type 'IntrinsicAttributes & LoadingOverlayProps'.
+  Property 'subtitle' does not exist on type 'IntrinsicAttributes & LoadingOverlayProps'.

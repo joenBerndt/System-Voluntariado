@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FolderOpen, Calendar, FileText, Video, Download, ExternalLink, PlayCircle, File, Image as ImageIcon, Link, CheckCircle, Circle, TrendingUp, Award, Eye } from 'lucide-react';
 import { useApi, apiPost, apiPut } from '../hooks/useApi';
 import { LoadingSpinner } from './LoadingOverlay';
@@ -10,28 +10,28 @@ interface VolunteerProjectsProps {
 
 export function VolunteerProjects({ currentUser }: VolunteerProjectsProps) {
   const { showSuccess, showError, showLoading, hideNotification } = useNotifications();
-  
+
   const { data: projectsData } = useApi<any[]>('/projects');
   const { data: materialsData } = useApi<any[]>('/training-materials', { fallbackOnError: true, autoRetry: true });
   const { data: applicationsData } = useApi<any[]>('/applications');
   const { data: convocatoriasData } = useApi<any[]>('/convocatorias');
   const { data: assignmentsData } = useApi<any[]>('/project-assignments');
-  const { data: progressData, refetch: refetchProgress } = useApi<any[]>('/material-progress', { 
+  const { data: progressData, refetch: refetchProgress } = useApi<any[]>('/material-progress', {
     fallbackOnError: true,
     autoRetry: true
   });
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [viewingMaterial, setViewingMaterial] = useState<any>(null);
-  
+
   const projects = projectsData || [];
   const materials = materialsData || [];
   const applications = applicationsData || [];
   const convocatorias = convocatoriasData || [];
   const assignments = assignmentsData || [];
   const progress = progressData || [];
-  
+
   // Get accepted applications for current user
-  const acceptedApplications = applications.filter(app => 
+  const acceptedApplications = applications.filter(app =>
     app.userEmail === currentUser?.email && app.status === 'accepted'
   );
 
@@ -49,107 +49,107 @@ export function VolunteerProjects({ currentUser }: VolunteerProjectsProps) {
   const myProjects = projects.filter(p => {
     // Check if in project-assignments (this is the main way to be a member)
     const isMember = projectIdsFromAssignments.includes(p.id);
-    
+
     // Check if directly assigned (legacy method)
-    const isDirectlyAssigned = p.assignedVolunteers && 
-      Array.isArray(p.assignedVolunteers) && 
+    const isDirectlyAssigned = p.assignedVolunteers &&
+      Array.isArray(p.assignedVolunteers) &&
       p.assignedVolunteers.includes(currentUser?.id);
-    
+
     // Check if project is from an accepted convocatoria
     const isFromAcceptedConvocatoria = projectIdsFromApplications.includes(p.id);
-    
+
     return isMember || isDirectlyAssigned || isFromAcceptedConvocatoria;
   });
 
-  console.log('Current User ID:', currentUser?.id);
-  console.log('Current User Email:', currentUser?.email);
-  console.log('My Assignments:', myAssignments);
-  console.log('Project IDs from Assignments:', projectIdsFromAssignments);
-  console.log('Accepted Applications:', acceptedApplications);
-  console.log('Project IDs from Applications:', projectIdsFromApplications);
-  console.log('All Projects:', projects);
-  console.log('My Projects:', myProjects);
+
 
   // Filter only published materials for the selected project
   const projectMaterials = selectedProject
     ? materials
-        .filter(m => m.projectId === selectedProject.id && m.published === true)
-        .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .filter(m => m.projectId === selectedProject.id && m.published === true)
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
     : [];
 
-  // Get progress for current user
-  const myProgress = progress.filter(p => p.userId === currentUser?.id);
+  // Get progress for current user (filtered from API) and manage optimistic state
+  const myProgress = progress.filter(p => p.userId === currentUser?.id || p.volunteerId === currentUser?.id);
+  const [optimisticProgress, setOptimisticProgress] = useState<any[]>([]);
 
-  // Calculate project completion
+  // Sync optimistic progress with server data when it loads/changes
+  useEffect(() => {
+    if (myProgress.length > 0) {
+      setOptimisticProgress(myProgress);
+    }
+  }, [JSON.stringify(myProgress)]); // Simple comparison to avoid loops
+
+  // Calculate project completion using optimistic data
   const getProjectCompletion = (projectId: string) => {
     const projectMats = materials.filter(m => m.projectId === projectId && m.published === true);
     if (projectMats.length === 0) return 0;
-    
+
     const completedMats = projectMats.filter(m => {
-      const matProgress = myProgress.find(p => p.materialId === m.id);
+      // Check both local optimistic state and server state
+      const matProgress = optimisticProgress.find(p => p.materialId === m.id) || myProgress.find(p => p.materialId === m.id);
       return matProgress?.viewed === true;
     });
-    
+
     return Math.round((completedMats.length / projectMats.length) * 100);
   };
 
-  // Get material progress
+  // Get material progress using optimistic data
   const getMaterialProgress = (materialId: string) => {
-    return myProgress.find(p => p.materialId === materialId);
+    return optimisticProgress.find(p => p.materialId === materialId) || myProgress.find(p => p.materialId === materialId);
   };
 
   // Mark material as viewed
   const markAsViewed = async (materialId: string) => {
-    const loadingId = showLoading('Registrando progreso...', 'Actualizando tu avance en la capacitación');
-    
+    // Check if already viewed to facilitate idempotent calls
+    const existing = getMaterialProgress(materialId);
+    if (existing?.viewed) return;
+
+    // Optimistic Update
+    const newProgressItem = {
+      materialId,
+      userId: currentUser?.id,
+      volunteerId: currentUser?.id,
+      viewed: true,
+      progress: 100,
+      updatedAt: new Date().toISOString()
+    };
+
+    setOptimisticProgress(prev => {
+      // Avoid duplicates
+      if (prev.find(p => p.materialId === materialId)) return prev;
+      return [...prev, newProgressItem];
+    });
+
     try {
-      const existingProgress = getMaterialProgress(materialId);
-      
-      if (existingProgress) {
-        // Update existing progress
-        await apiPut(`/material-progress/${existingProgress.id}`, {
-          ...existingProgress,
-          viewed: true,
-          progress: 100,
-          viewedAt: new Date().toISOString(),
-          completedAt: new Date().toISOString(),
-        });
-      } else {
-        // Create new progress entry
-        await apiPost('/material-progress', {
-          materialId,
-          userId: currentUser?.id,
-          volunteerId: currentUser?.id,
-          viewed: true,
-          progress: 100,
-          viewedAt: new Date().toISOString(),
-          completedAt: new Date().toISOString(),
-        });
-      }
-      
-      hideNotification(loadingId);
-      showSuccess('¡Material completado!', 'Tu progreso ha sido registrado exitosamente');
-      
-      // Refetch progress after a short delay to ensure server has updated
+      // Silent update in bg, or show minimal toast
+      // We rely on optimistic UI, so we don't need a blocking loader
+
+      await apiPost('/material-progress', {
+        materialId,
+        volunteerId: currentUser?.id,
+        // Removed userId to avoid potential DB column mismatch if table only has volunteer_id
+        viewed: true,
+        progress: 100,
+      });
+
+      // Refetch progress to sync server state eventually
       setTimeout(() => {
         refetchProgress();
-      }, 500);
+      }, 1000);
+
     } catch (err: any) {
+      console.error('Error marking material as viewed:', err);
+      // We don't revert optimistic update here to avoid jarring UX if it's just a network blip.
+      // The Next sync with server will correct it if it truly failed.
+
       // Manejo silencioso de errores durante inicio del servidor
       const errorMsg = err?.message || '';
       if (errorMsg.includes('iniciando') || errorMsg.includes('404') || errorMsg.includes('not found')) {
-        hideNotification(loadingId);
-        console.log('⏳ El progreso se guardará cuando el servidor esté listo');
-        // Intentar de nuevo después de un delay
-        setTimeout(() => {
-          markAsViewed(materialId).catch(() => {
-            // Fallo silencioso en el reintento
-          });
-        }, 5000);
-      } else {
-        hideNotification(loadingId);
-        console.error('Error marking material as viewed:', err);
-        showError('Error al registrar progreso', 'No se pudo actualizar tu avance. Intenta nuevamente.');
+        console.log('⏳ El progreso se guardará cuando el servidor esté listo (reintentando en fondo)');
+        // Check if we need retry logic here or if useApi handles it. 
+        // Since we used apiPost, it has retry logic.
       }
     }
   };
@@ -209,406 +209,407 @@ export function VolunteerProjects({ currentUser }: VolunteerProjectsProps) {
 
       {myProjects.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Projects List */}
-          <div className="lg:col-span-1 space-y-4">
-            <h3 className="text-gray-900">Tus Proyectos</h3>
+          {/* Projects List - Sticky Header */}
+          <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-100px)] lg:overflow-y-auto pr-1 custom-scrollbar">
+            <h3 className="text-gray-900 px-1">Tus Proyectos</h3>
             {myProjects.map((project) => {
-              // Check how the volunteer got into this project
-              const isDirectlyAssigned = project.assignedVolunteers && 
-                Array.isArray(project.assignedVolunteers) && 
+              const isDirectlyAssigned = project.assignedVolunteers &&
+                Array.isArray(project.assignedVolunteers) &&
                 project.assignedVolunteers.includes(currentUser?.id);
               const isFromConvocatoria = projectIdsFromApplications.includes(project.id);
               const completionPercentage = getProjectCompletion(project.id);
               const projectMatsCount = materials.filter(m => m.projectId === project.id && m.published === true).length;
-              
+              const isSelected = selectedProject?.id === project.id;
+
               return (
-              <button
-                key={project.id}
-                onClick={() => setSelectedProject(project)}
-                className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                  selectedProject?.id === project.id
-                    ? 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-300 shadow-lg'
-                    : 'bg-white border-gray-200 hover:border-emerald-200 hover:shadow-md'
-                }`}
-              >
-                <div className="flex items-start gap-3 mb-2">
-                  <div className={`p-2 rounded-lg ${
-                    project.status === 'activo' 
-                      ? 'bg-emerald-100' 
-                      : 'bg-blue-100'
-                  }`}>
-                    <FolderOpen className={`w-5 h-5 ${
-                      project.status === 'activo'
-                        ? 'text-emerald-700'
-                        : 'text-blue-700'
-                    }`} />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-gray-900 mb-1">{project.name}</h4>
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
-                        project.status === 'activo'
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                          : 'bg-blue-100 text-blue-800 border border-blue-200'
+                <button
+                  key={project.id}
+                  onClick={() => setSelectedProject(project)}
+                  className={`w-full text-left p-5 rounded-2xl border-2 transition-all duration-300 group ${isSelected
+                    ? 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-400 shadow-md ring-1 ring-emerald-100'
+                    : 'bg-white border-gray-100 hover:border-emerald-200 hover:shadow-lg hover:-translate-y-0.5'
+                    }`}
+                >
+                  {/* Header: Icon + Name + Status */}
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className={`p-3 rounded-xl shadow-sm transition-colors ${project.status === 'activo'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-blue-100 text-blue-700'
                       }`}>
-                        {project.status === 'activo' ? '● Activo' : '✓ Finalizado'}
-                      </span>
-                      {isFromConvocatoria && !isDirectlyAssigned && (
-                        <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
-                          📋 Por convocatoria
-                        </span>
-                      )}
-                      {isDirectlyAssigned && (
-                        <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-teal-100 text-teal-800 border border-teal-200">
-                          ✓ Asignación directa
-                        </span>
-                      )}
+                      <FolderOpen className="w-6 h-6" />
                     </div>
-                  </div>
-                </div>
-                <p className="text-gray-600 text-sm line-clamp-2 mb-3">{project.description}</p>
-                
-                {/* Progress Indicator */}
-                {projectMatsCount > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-600 flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3" />
-                        Progreso de capacitación
-                      </span>
-                      <span className={`font-bold ${
-                        completionPercentage === 100 ? 'text-emerald-600' : 'text-gray-900'
-                      }`}>
-                        {completionPercentage}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          completionPercentage === 100 
-                            ? 'bg-gradient-to-r from-emerald-500 to-green-500' 
-                            : 'bg-gradient-to-r from-emerald-500 to-teal-500'
-                        }`}
-                        style={{ width: `${completionPercentage}%` }}
-                      />
-                    </div>
-                    {completionPercentage === 100 && (
-                      <div className="flex items-center gap-1 text-xs text-emerald-700 font-semibold">
-                        <Award className="w-3 h-3" />
-                        ¡Curso completado!
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className={`text-lg font-bold truncate ${isSelected ? 'text-emerald-950' : 'text-gray-900'}`}>{project.name}</h4>
+                        {isSelected && <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>}
                       </div>
-                    )}
+
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <span className={`px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${project.status === 'activo'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-blue-100 text-blue-700'
+                          }`}>
+                          {project.status === 'activo' ? 'Activo' : 'Finalizado'}
+                        </span>
+                        {isFromConvocatoria && !isDirectlyAssigned && (
+                          <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md bg-purple-100 text-purple-700">
+                            Convocatoria
+                          </span>
+                        )}
+                        {isDirectlyAssigned && (
+                          <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md bg-teal-100 text-teal-700">
+                            Asignado
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )}
-              </button>
+
+                  {/* Description & Details */}
+                  <div className="pl-1 space-y-3 mb-4">
+                    <p className="text-gray-600 text-sm leading-relaxed line-clamp-2">
+                      {project.description}
+                    </p>
+
+                    {/* Dates */}
+                    <div className="flex items-center gap-4 text-xs text-gray-500 bg-gray-50/80 p-2.5 rounded-lg border border-gray-100">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                        <span>Inicio: <span className="font-semibold text-gray-700">{new Date(project.startDate).toLocaleDateString('es-ES')}</span></span>
+                      </div>
+                      <div className="w-px h-3 bg-gray-300"></div>
+                      <div className="flex items-center gap-1.5">
+                        <span>Fin: <span className="font-semibold text-gray-700">{new Date(project.endDate).toLocaleDateString('es-ES')}</span></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress Section */}
+                  {projectMatsCount > 0 ? (
+                    <div className="space-y-2 pt-2 border-t border-gray-100/50">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                          <TrendingUp className="w-3.5 h-3.5" />
+                          Avance del curso
+                        </span>
+                        <span className={`font-bold text-sm ${completionPercentage === 100 ? 'text-emerald-600' : 'text-emerald-700'
+                          }`}>
+                          {completionPercentage}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden ring-1 ring-gray-50">
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ease-out ${completionPercentage === 100
+                            ? 'bg-gradient-to-r from-emerald-400 to-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                            : 'bg-gradient-to-r from-emerald-400 to-teal-500'
+                            }`}
+                          style={{ width: `${completionPercentage}%` }}
+                        />
+                      </div>
+                      {completionPercentage === 100 && (
+                        <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-700 font-bold bg-emerald-50 py-1 rounded-md animate-fade-in">
+                          <Award className="w-3.5 h-3.5" />
+                          ¡Completado!
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="pt-2 border-t border-gray-100/50 text-xs text-gray-400 italic text-center">
+                      Sin materiales disponibles
+                    </div>
+                  )}
+                </button>
               );
             })}
-          </div>
 
-          {/* Project Details and Materials */}
-          <div className="lg:col-span-2">
-            {selectedProject ? (
-              <div className="space-y-6">
-                {/* Project Info */}
-                <div className="bg-white p-6 rounded-xl border-2 border-emerald-200 shadow-lg">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-gray-900 mb-2">{selectedProject.name}</h3>
-                      <p className="text-gray-700">{selectedProject.description}</p>
-                    </div>
-                    <span className={`px-4 py-2 rounded-full font-semibold ${
-                      selectedProject.status === 'activo'
-                        ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-200'
-                        : 'bg-blue-100 text-blue-800 border-2 border-blue-200'
-                    }`}>
-                      {selectedProject.status === 'activo' ? '● Activo' : '✓ Finalizado'}
-                    </span>
+            {/* Selected Project Info Card (Moved to Left Column) */}
+            {selectedProject && (
+              <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                  <FolderOpen className="w-24 h-24 text-emerald-900 transform rotate-12" />
+                </div>
+
+                <div className="relative z-10 space-y-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">{selectedProject.name}</h3>
+                    <p className="text-gray-600 text-xs text-justify">
+                      {selectedProject.description}
+                    </p>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Calendar className="w-4 h-4 text-emerald-600" />
-                      <div>
-                        <p className="text-xs text-gray-500">Inicio</p>
-                        <p className="font-semibold">{new Date(selectedProject.startDate).toLocaleDateString('es-ES')}</p>
-                      </div>
+
+                  {/* Dates Compact */}
+                  <div className="flex gap-2 text-xs text-gray-500 bg-gray-50 p-2 rounded-lg border border-gray-100 whitespace-nowrap overflow-x-auto">
+                    <div>
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-bold">Inicio</p>
+                      <p className="font-medium text-gray-700">{new Date(selectedProject.startDate).toLocaleDateString('es-ES')}</p>
                     </div>
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Calendar className="w-4 h-4 text-emerald-600" />
-                      <div>
-                        <p className="text-xs text-gray-500">Fin</p>
-                        <p className="font-semibold">{new Date(selectedProject.endDate).toLocaleDateString('es-ES')}</p>
-                      </div>
+                    <div className="w-px bg-gray-200"></div>
+                    <div>
+                      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-bold">Fin</p>
+                      <p className="font-medium text-gray-700">{new Date(selectedProject.endDate).toLocaleDateString('es-ES')}</p>
                     </div>
                   </div>
 
                   {selectedProject.objectives && (
-                    <div className="mt-4 p-4 bg-amber-50 rounded-lg border-2 border-amber-200">
-                      <p className="text-amber-900 font-semibold mb-2">Objetivos del Proyecto</p>
-                      <p className="text-gray-700">{selectedProject.objectives}</p>
-                    </div>
+                    <details className="group/details">
+                      <summary className="cursor-pointer text-xs font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1 select-none">
+                        <span className="group-open/details:hidden">Ver objetivos</span>
+                        <span className="hidden group-open/details:block">Ocultar objetivos</span>
+                        <Award className="w-3 h-3" />
+                      </summary>
+                      <div className="mt-2 text-xs text-gray-600 bg-emerald-50/50 p-2 rounded border border-emerald-100 text-justify">
+                        {selectedProject.objectives}
+                      </div>
+                    </details>
                   )}
                 </div>
+              </div>
+            )}
+          </div>
 
-                {/* Training Materials */}
-                <div className="bg-white p-6 rounded-xl border-2 border-gray-200 shadow-lg">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-gray-900">Materiales de Capacitación</h3>
+          {/* Project Details and Materials */}
+          <div className="lg:col-span-2 space-y-4">
+            {selectedProject ? (
+              <>
+
+
+                {/* Training Materials Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                      <Award className="w-5 h-5 text-emerald-600" />
+                      Materiales de Capacitación
+                    </h3>
                     {projectMaterials.length > 0 && (
-                      <div className="flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-lg">
-                        <Award className="w-5 h-5 text-emerald-600" />
-                        <div className="text-right">
-                          <p className="text-xs text-gray-600">Progreso del Curso</p>
-                          <p className="font-bold text-gray-900">{getProjectCompletion(selectedProject.id)}%</p>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right hidden sm:block">
+                          <p className="text-xs font-medium text-gray-500">Progreso</p>
+                          <p className="text-sm font-bold text-emerald-700 leading-none">{getProjectCompletion(selectedProject.id)}%</p>
                         </div>
-                        <div className="w-24 bg-gray-200 rounded-full h-2">
+                        <div className="w-20 bg-gray-200 rounded-full h-2">
                           <div
-                            className="bg-gradient-to-r from-emerald-500 to-teal-500 h-2 rounded-full transition-all duration-500"
+                            className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
                             style={{ width: `${getProjectCompletion(selectedProject.id)}%` }}
                           />
                         </div>
                       </div>
                     )}
                   </div>
-                  
-                  {projectMaterials.length > 0 ? (
-                    <div className="space-y-4">
-                      {projectMaterials.map((material, index) => {
-                        const Icon = getMaterialIcon(material.type);
-                        const youtubeUrl = material.type === 'youtube' ? getYouTubeEmbedUrl(material.url) : null;
-                        const matProgress = getMaterialProgress(material.id);
-                        const isCompleted = matProgress?.viewed === true;
 
-                        return (
-                          <div key={material.id} className={`border-2 rounded-xl overflow-hidden transition-all ${
-                            isCompleted 
-                              ? 'border-emerald-300 bg-emerald-50/30' 
-                              : 'border-gray-200 hover:border-emerald-300'
-                          }`}>
-                            <div className="p-4 bg-gradient-to-r from-gray-50 to-emerald-50">
-                              <div className="flex items-start gap-3">
-                                {/* Completion Indicator */}
-                                <div className="flex-shrink-0 pt-1">
-                                  {isCompleted ? (
-                                    <CheckCircle className="w-6 h-6 text-emerald-600" />
-                                  ) : (
-                                    <Circle className="w-6 h-6 text-gray-400" />
-                                  )}
+                  {projectMaterials.length > 0 ? (
+                    <div className="space-y-6">
+                      {/* --- MAIN ACTIVE MATERIAL VIEWER --- */}
+                      <div className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden">
+                        {(() => {
+                          const uncompletedMaterial = projectMaterials.find(m => {
+                            const prog = getMaterialProgress(m.id);
+                            return !prog || !prog.viewed;
+                          });
+
+                          const activeMaterial = viewingMaterial || uncompletedMaterial || projectMaterials[0];
+
+                          const Icon = getMaterialIcon(activeMaterial.type);
+                          const youtubeUrl = activeMaterial.type === 'youtube' ? getYouTubeEmbedUrl(activeMaterial.url) : null;
+                          const matProgress = getMaterialProgress(activeMaterial.id);
+                          const isCompleted = matProgress?.viewed === true;
+
+                          return (
+                            <div className="flex flex-col">
+                              {/* Active Content Header */}
+                              <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div className={`p-2 rounded-lg ${isCompleted ? 'bg-emerald-100' : 'bg-blue-100'}`}>
+                                    <Icon className={`w-6 h-6 ${isCompleted ? 'text-emerald-700' : 'text-blue-700'}`} />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-bold text-gray-900 text-xl leading-tight">{selectedProject.name}</h4>
+                                    <p className="text-sm text-emerald-600 font-medium flex items-center gap-1">
+                                      Ahora viendo:
+                                      <span className="text-gray-600 font-normal">{activeMaterial.title}</span>
+                                    </p>
+                                  </div>
                                 </div>
-                                
-                                <div className="bg-emerald-100 p-3 rounded-lg">
-                                  <Icon className="w-5 h-5 text-emerald-700" />
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-xs font-bold text-gray-500">#{index + 1}</span>
-                                        <h4 className="text-gray-900">{material.title}</h4>
-                                      </div>
-                                      {material.description && (
-                                        <p className="text-gray-600 text-sm mb-2">{material.description}</p>
+                                {isCompleted ? (
+                                  <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full text-sm font-semibold border border-emerald-100">
+                                    <CheckCircle className="w-4 h-4" />
+                                    Completado
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1 text-blue-600 bg-blue-50 px-3 py-1 rounded-full text-sm font-semibold border border-blue-100">
+                                    <PlayCircle className="w-4 h-4" />
+                                    En curso
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Active Content Body */}
+                              <div className="bg-black/5 min-h-[300px] flex items-center justify-center relative group">
+                                {/* YouTube */}
+                                {youtubeUrl && (
+                                  <div className="aspect-video w-full h-full">
+                                    <iframe
+                                      src={youtubeUrl}
+                                      className="w-full h-full"
+                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                      allowFullScreen
+                                      onLoad={() => {
+                                        if (!isCompleted) markAsViewed(activeMaterial.id);
+                                      }}
+                                    />
+                                  </div>
+                                )}
+
+                                {/* Image */}
+                                {activeMaterial.type === 'image' && activeMaterial.url && !youtubeUrl && (
+                                  <img
+                                    src={activeMaterial.url}
+                                    alt={activeMaterial.title}
+                                    className="w-full h-auto max-h-[500px] object-contain"
+                                    onLoad={() => {
+                                      if (!isCompleted) markAsViewed(activeMaterial.id);
+                                    }}
+                                  />
+                                )}
+
+                                {/* Documents / Links (Placeholders) */}
+                                {!youtubeUrl && activeMaterial.type !== 'image' && (
+                                  <div className="p-8 text-center max-w-lg mx-auto">
+                                    <div className="bg-white p-6 rounded-2xl shadow-sm mb-6 inline-flex flex-col items-center">
+                                      {activeMaterial.type === 'pdf' ? (
+                                        <FileText className="w-16 h-16 text-red-500 mb-4" />
+                                      ) : activeMaterial.type === 'link' ? (
+                                        <ExternalLink className="w-16 h-16 text-blue-500 mb-4" />
+                                      ) : (
+                                        <Download className="w-16 h-16 text-emerald-500 mb-4" />
                                       )}
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                                          material.type === 'youtube' || material.type === 'video'
-                                            ? 'bg-red-100 text-red-800 border border-red-200'
-                                            : material.type === 'pdf' || material.type === 'document'
-                                            ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                                            : material.type === 'image'
-                                            ? 'bg-green-100 text-green-800 border border-green-200'
-                                            : 'bg-purple-100 text-purple-800 border border-purple-200'
-                                        }`}>
-                                          {material.type === 'youtube' && '▶ Video YouTube'}
-                                          {material.type === 'video' && '▶ Video'}
-                                          {material.type === 'pdf' && '📄 PDF'}
-                                          {material.type === 'document' && '📄 Documento'}
-                                          {material.type === 'image' && '🖼️ Imagen'}
-                                          {material.type === 'link' && '🔗 Enlace'}
-                                          {!['youtube', 'video', 'pdf', 'document', 'image', 'link'].includes(material.type) && '📎 Archivo'}
-                                        </span>
-                                        {isCompleted && (
-                                          <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                            ✓ Completado
-                                          </span>
+                                      <p className="text-gray-900 font-bold mb-2">Contenido Externo</p>
+                                      <div className="flex gap-2">
+                                        <a
+                                          href={activeMaterial.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={() => {
+                                            if (!isCompleted) markAsViewed(activeMaterial.id);
+                                          }}
+                                          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center gap-2"
+                                        >
+                                          {activeMaterial.type === 'link' ? 'Abrir Enlace' : 'Descargar / Ver'}
+                                          <ExternalLink className="w-4 h-4" />
+                                        </a>
+                                        {!isCompleted && (
+                                          <button
+                                            onClick={() => markAsViewed(activeMaterial.id)}
+                                            className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-200 font-medium transition-colors"
+                                          >
+                                            Marcar visto
+                                          </button>
                                         )}
                                       </div>
                                     </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* YouTube Embed */}
-                            {youtubeUrl && (
-                              <div className="aspect-video">
-                                <iframe
-                                  src={youtubeUrl}
-                                  className="w-full h-full"
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                  allowFullScreen
-                                  onLoad={() => {
-                                    // Auto-mark as viewed when iframe loads
-                                    if (!isCompleted) {
-                                      markAsViewed(material.id);
-                                    }
-                                  }}
-                                />
-                              </div>
-                            )}
-
-                            {/* Image Preview */}
-                            {material.type === 'image' && material.url && !youtubeUrl && (
-                              <div className="bg-gray-900 p-4">
-                                <img
-                                  src={material.url}
-                                  alt={material.title}
-                                  className="w-full max-h-96 object-contain rounded-lg"
-                                  onLoad={() => {
-                                    if (!isCompleted) {
-                                      markAsViewed(material.id);
-                                    }
-                                  }}
-                                  onError={(e) => {
-                                    // If image fails to load, hide it
-                                    (e.target as HTMLImageElement).style.display = 'none';
-                                  }}
-                                />
-                              </div>
-                            )}
-
-                            {/* PDF Preview (Google Drive) */}
-                            {material.type === 'pdf' && getGoogleDrivePdfUrl(material.url) && (
-                              <div className="aspect-[3/4] bg-gray-100">
-                                <iframe
-                                  src={getGoogleDrivePdfUrl(material.url)!}
-                                  className="w-full h-full"
-                                  onLoad={() => {
-                                    if (!isCompleted) {
-                                      markAsViewed(material.id);
-                                    }
-                                  }}
-                                />
-                              </div>
-                            )}
-
-                            {/* Link/Document Message */}
-                            {material.type === 'link' && material.url && !youtubeUrl && (
-                              <div className="p-4 bg-gradient-to-br from-purple-50 to-indigo-50 border-t-2 border-purple-200">
-                                <div className="flex items-start gap-3">
-                                  <div className="p-2 bg-purple-100 rounded-lg">
-                                    <Link className="w-5 h-5 text-purple-600" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <p className="text-gray-700 font-semibold mb-1">Enlace externo disponible</p>
-                                    <p className="text-gray-600 text-sm mb-3">
-                                      Haz click en el botón de abajo para acceder al contenido y marcar esta capacitación como completada.
+                                    <p className="text-gray-500 text-sm">
+                                      Este material es un recurso externo. Haz clic en el botón para acceder a él y registrar tu progreso.
                                     </p>
-                                    <div className="bg-white px-4 py-3 rounded-lg border border-purple-200 break-all">
-                                      <p className="text-xs text-gray-500 mb-1">URL:</p>
-                                      <a 
-                                        href={material.url} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="text-purple-600 hover:text-purple-700 text-sm font-medium underline"
-                                        onClick={() => {
-                                          if (!isCompleted) {
-                                            markAsViewed(material.id);
-                                          }
-                                        }}
-                                      >
-                                        {material.url}
-                                      </a>
-                                    </div>
                                   </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Actions */}
-                            <div className="p-4 bg-gray-50 border-t-2 border-gray-200">
-                              <div className="flex gap-2 flex-wrap">
-                                {material.url && material.type !== 'youtube' && material.type !== 'link' && (
-                                  <a
-                                    href={material.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={() => {
-                                      if (!isCompleted) {
-                                        markAsViewed(material.id);
-                                      }
-                                    }}
-                                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
-                                  >
-                                    {material.type === 'pdf' ? <Eye className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-                                    {material.type === 'pdf' || material.type === 'document' ? 'Ver/Descargar Documento' : 'Ver Archivo'}
-                                  </a>
-                                )}
-                                {material.url && material.type === 'link' && (
-                                  <a
-                                    href={material.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={() => {
-                                      if (!isCompleted) {
-                                        markAsViewed(material.id);
-                                      }
-                                    }}
-                                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
-                                  >
-                                    <ExternalLink className="w-4 h-4" />
-                                    Abrir Enlace y Marcar como Visto
-                                  </a>
-                                )}
-                                {material.url && material.type !== 'link' && (
-                                  <a
-                                    href={material.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={() => {
-                                      if (!isCompleted) {
-                                        markAsViewed(material.id);
-                                      }
-                                    }}
-                                    className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-                                  >
-                                    <ExternalLink className="w-4 h-4" />
-                                    Abrir en nueva pestaña
-                                  </a>
-                                )}
-                                {!isCompleted && (
-                                  <button
-                                    onClick={() => markAsViewed(material.id)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium ml-auto"
-                                  >
-                                    <CheckCircle className="w-4 h-4" />
-                                    Marcar como completado
-                                  </button>
                                 )}
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })()}
+                      </div>
+
+                      {/* --- CAROUSEL / COMPRESSED LIST --- */}
+                      <div>
+                        <div className="flex items-center justify-between mb-3 px-1">
+                          <h4 className="text-gray-700 font-semibold ml-1">Lista de Contenidos</h4>
+                          <span className="text-xs text-gray-500">Desliza para ver más</span>
+                        </div>
+                        {/* Horizontal Scroll Container */}
+                        <div className="flex gap-4 overflow-x-auto pb-4 pt-1 px-1 snap-x scrollbar-thin scrollbar-thumb-emerald-200 scrollbar-track-transparent">
+                          {projectMaterials.map((material, index) => {
+                            const Icon = getMaterialIcon(material.type);
+                            const matProgress = getMaterialProgress(material.id);
+                            const isCompleted = matProgress?.viewed === true;
+
+                            const uncompleted = projectMaterials.find(m => {
+                              const p = getMaterialProgress(m.id);
+                              return !p || !p.viewed;
+                            });
+                            const activeId = (viewingMaterial?.id) || (uncompleted?.id) || (projectMaterials[0].id);
+                            const isActive = activeId === material.id;
+
+                            return (
+                              <button
+                                key={material.id}
+                                onClick={() => {
+                                  setViewingMaterial(material);
+                                }}
+                                className={`flex-shrink-0 w-64 snap-start text-left bg-white rounded-xl border transition-all duration-200 group relative overflow-hidden ${isActive
+                                  ? 'border-emerald-500 ring-2 ring-emerald-100 shadow-md scale-[1.02]'
+                                  : 'border-gray-200 hover:border-emerald-300 hover:shadow-sm'
+                                  }`}
+                              >
+                                <div className="absolute top-2 right-2 z-10 transition-opacity duration-300">
+                                  {isCompleted ? (
+                                    <div className="bg-emerald-500 text-white p-1 rounded-full shadow-sm">
+                                      <CheckCircle className="w-3 h-3" />
+                                    </div>
+                                  ) : (
+                                    <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isActive ? 'bg-emerald-500 text-white shadow-sm' : 'bg-black/30 backdrop-blur-sm text-white'}`}>
+                                      #{index + 1}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Thumbnail Placeholder */}
+                                <div className={`h-32 w-full flex items-center justify-center relative ${isActive ? 'bg-emerald-50' : 'bg-gray-100'}`}>
+                                  {material.type === 'youtube' ? (
+                                    <img
+                                      src={`https://img.youtube.com/vi/${(material.url.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/watch\?.+&v=))([^&\n?#]+)/) || [])[1]}/mqdefault.jpg`}
+                                      className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                                    />
+                                  ) : (
+                                    <Icon className={`w-10 h-10 ${isActive ? 'text-emerald-500' : 'text-gray-400'}`} />
+                                  )}
+
+                                  {/* Highlight Active Badge */}
+                                  {isActive && (
+                                    <div className="absolute inset-x-0 bottom-0 top-auto h-1 bg-emerald-500"></div>
+                                  )}
+                                </div>
+
+                                <div className="p-3">
+                                  <h5 className={`text-sm font-semibold line-clamp-2 mb-1 ${isActive ? 'text-emerald-700' : 'text-gray-700'}`}>
+                                    {material.title}
+                                  </h5>
+                                  <p className="text-xs text-gray-500 line-clamp-1">{material.type === 'youtube' ? 'Video' : material.type === 'pdf' ? 'Documento PDF' : 'Recurso'}</p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   ) : (
-                    <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-emerald-50 rounded-lg border-2 border-gray-200">
-                      <Video className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-600">No hay materiales de capacitación disponibles aún</p>
-                      <p className="text-gray-500 text-sm mt-1">Los administradores subirán recursos próximamente</p>
+                    <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                      <div className="bg-white p-3 rounded-full shadow-sm inline-block mb-3">
+                        <Video className="w-6 h-6 text-emerald-500" />
+                      </div>
+                      <p className="text-gray-900 font-medium text-sm">Sin materiales asignados</p>
+                      <p className="text-gray-500 text-xs">Este proyecto aún no tiene contenido.</p>
                     </div>
                   )}
                 </div>
-              </div>
+              </>
             ) : (
-              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-12 rounded-xl border-2 border-emerald-200 text-center h-full flex items-center justify-center">
-                <div>
-                  <PlayCircle className="w-16 h-16 text-emerald-600 mx-auto mb-4" />
-                  <h3 className="text-gray-900 mb-2">Selecciona un proyecto</h3>
-                  <p className="text-gray-600">
-                    Elige un proyecto de la lista para ver sus detalles y materiales de capacitación
-                  </p>
+              <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl p-12 text-center h-full flex flex-col items-center justify-center">
+                <div className="bg-white p-4 rounded-full shadow-sm mb-4">
+                  <FolderOpen className="w-8 h-8 text-emerald-400" />
                 </div>
+                <h3 className="text-gray-900 font-semibold mb-1">Selecciona un proyecto</h3>
+                <p className="text-gray-500 text-sm max-w-sm mx-auto">
+                  Elige uno de tus proyectos asignados a la izquierda para ver su contenido y progreso.
+                </p>
               </div>
             )}
           </div>

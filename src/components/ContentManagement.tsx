@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Edit, Trash2, Video, X, Users, Eye, TrendingUp, Play } from 'lucide-react';
+import { Plus, Edit, Trash2, Video, X, Users, Eye, TrendingUp, Play, CheckCircle, Clock, EyeOff, BarChart2, ChevronLeft, ChevronRight, Search, Filter } from 'lucide-react';
 import { useApi, apiPost, apiPut, apiDelete } from '../hooks/useApi';
 import { VideoMaterialModal } from './VideoMaterialModal';
 import { LoadingSpinner } from './LoadingOverlay';
@@ -15,12 +15,16 @@ export function ContentManagement({ currentUser }: ContentManagementProps) {
   const [editingMaterial, setEditingMaterial] = useState<any>(null);
   const [viewingProgress, setViewingProgress] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
-  
+  const [projectPage, setProjectPage] = useState(0);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [managerFilter, setManagerFilter] = useState('');
+
   const { showSuccess, showError, showLoading, hideNotification } = useNotifications();
 
   const { data: projectsData, isLoading: loadingProjects } = useApi<any[]>('/projects');
   const { data: assignmentsData } = useApi<any[]>('/project-assignments');
   const { data: volunteersData } = useApi<any[]>('/volunteers');
+  const { data: usersData } = useApi<any[]>('/users');
   const { data: materialsData, refetch: refetchMaterials, isLoading: loadingMaterials } = useApi<any[]>('/training-materials');
   const { data: progressData } = useApi<any[]>('/material-progress');
 
@@ -29,17 +33,27 @@ export function ContentManagement({ currentUser }: ContentManagementProps) {
   const volunteers = volunteersData || [];
   const materials = materialsData || [];
   const progress = progressData || [];
+  const admins = usersData?.filter(u => u.role === 'admin') || [];
 
   // Filtrar proyectos del usuario
   const myProjects = projects.filter(p => {
     if (currentUser?.role === 'admin_master') return true;
-    
+
     const isManager = p.managers && p.managers.includes(currentUser?.id);
-    const isAssigned = currentUser?.role === 'volunteer' && 
+    const isAssigned = currentUser?.role === 'volunteer' &&
       assignments.some(a => a.projectId === p.id && a.volunteerId === currentUser?.id);
-    
+
     return isManager || isAssigned;
   });
+
+  const filteredProjects = myProjects.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(projectSearch.toLowerCase());
+    const matchesManager = managerFilter ? p.managers && p.managers.includes(managerFilter) : true;
+    return matchesSearch && matchesManager;
+  });
+
+  const ITEMS_PER_PAGE = 3;
+  const totalPages = Math.ceil(filteredProjects.length / ITEMS_PER_PAGE);
 
   // Obtener materiales del proyecto seleccionado
   const projectMaterials = selectedProject
@@ -68,7 +82,7 @@ export function ContentManagement({ currentUser }: ContentManagementProps) {
   const getProgressPercentage = (materialId: string) => {
     const materialProgress = getMaterialProgress(materialId);
     if (materialProgress.length === 0) return 0;
-    
+
     const totalProgress = materialProgress.reduce((sum, p) => sum + (p.progress || 0), 0);
     return Math.round(totalProgress / materialProgress.length);
   };
@@ -91,7 +105,7 @@ export function ContentManagement({ currentUser }: ContentManagementProps) {
       showError('Proyecto no seleccionado', 'Por favor selecciona un proyecto primero');
       return;
     }
-    
+
     setEditingMaterial(null);
     setIsModalOpen(true);
   };
@@ -108,7 +122,7 @@ export function ContentManagement({ currentUser }: ContentManagementProps) {
       materialData.id ? 'Actualizando video...' : 'Creando video...',
       'Por favor espera un momento'
     );
-    
+
     setIsSaving(true);
     try {
       console.log('💾 Guardando material:', materialData);
@@ -136,12 +150,12 @@ export function ContentManagement({ currentUser }: ContentManagementProps) {
 
       setIsModalOpen(false);
       setEditingMaterial(null);
-      
+
       // Recargar materiales
       setTimeout(() => {
         refetchMaterials();
       }, 300);
-      
+
     } catch (err: any) {
       console.error('❌ Error guardando material:', err);
       hideNotification(loadingId);
@@ -161,7 +175,7 @@ export function ContentManagement({ currentUser }: ContentManagementProps) {
     }
 
     const loadingId = showLoading('Eliminando video...', 'Espera un momento');
-    
+
     try {
       console.log('🗑️ Eliminando material:', materialId);
       await apiDelete(`/training-materials/${materialId}`);
@@ -181,74 +195,164 @@ export function ContentManagement({ currentUser }: ContentManagementProps) {
     }
   };
 
+  // Toggle publish status
+  const handleTogglePublish = async (material: any) => {
+    const newStatus = !material.published;
+    const actionText = newStatus ? 'Publicando' : 'Ocultando';
+    const loadingId = showLoading(
+      `${actionText} video...`,
+      'Actualizando visibilidad'
+    );
+
+    try {
+      await apiPut(`/training-materials/${material.id}`, {
+        ...material,
+        published: newStatus
+      });
+
+      hideNotification(loadingId);
+      showSuccess(
+        newStatus ? '¡Video publicado!' : 'Video ocultado',
+        newStatus ? 'El video ahora es visible para los voluntarios' : 'El video ya no es visible para los voluntarios'
+      );
+      refetchMaterials();
+    } catch (err: any) {
+      hideNotification(loadingId);
+      showError('Error', 'No se pudo actualizar el estado del video');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-gray-900 mb-2">Materiales de Capacitación</h2>
-        <p className="text-gray-600">Administra videos de capacitación y monitorea el progreso de tus voluntarios</p>
+        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Materiales de Capacitación</h2>
+        <p className="text-gray-500 mt-1">Administra videos de capacitación y monitorea el progreso de tus voluntarios</p>
       </div>
 
       {/* Projects Grid */}
       <div className="bg-white p-6 rounded-xl border-2 border-gray-200 shadow-lg">
-        <h3 className="text-gray-900 mb-4">Selecciona un Proyecto</h3>
-        
+        <div className="mb-6">
+          <h3 className="text-gray-900 font-semibold mb-4">Selecciona un Proyecto</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Buscar proyecto..."
+                value={projectSearch}
+                onChange={(e) => {
+                  setProjectSearch(e.target.value);
+                  setProjectPage(0);
+                }}
+                className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+
+            <select
+              value={managerFilter}
+              onChange={(e) => {
+                setManagerFilter(e.target.value);
+                setProjectPage(0);
+              }}
+              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+            >
+              <option value="">Todos los encargados</option>
+              {admins.map((admin: any) => (
+                <option key={admin.id} value={admin.id}>{admin.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         {loadingProjects ? (
           <LoadingSpinner size="lg" message="Cargando proyectos disponibles..." />
-        ) : myProjects.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {myProjects.map((project) => {
-              const volunteerCount = getProjectVolunteers(project.id).length;
-              const projectMaterialsCount = materials.filter(m => m.projectId === project.id).length;
-              
-              return (
-                <button
-                  key={project.id}
-                  onClick={() => setSelectedProject(project)}
-                  className={`text-left p-5 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                    selectedProject?.id === project.id
+        ) : filteredProjects.length > 0 ? (
+          <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredProjects.slice(projectPage * ITEMS_PER_PAGE, (projectPage + 1) * ITEMS_PER_PAGE).map((project) => {
+                const volunteerCount = getProjectVolunteers(project.id).length;
+                const projectMaterialsCount = materials.filter(m => m.projectId === project.id).length;
+
+                return (
+                  <button
+                    key={project.id}
+                    onClick={() => setSelectedProject(project)}
+                    className={`text-left p-5 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 animate-fade-in ${selectedProject?.id === project.id
                       ? 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-400 shadow-lg scale-105'
                       : 'bg-white border-gray-200 hover:border-emerald-300 hover:shadow-md'
-                  }`}
-                >
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className={`p-3 rounded-lg transition-colors ${
-                      project.status === 'activo' ? 'bg-emerald-100' : 'bg-gray-100'
-                    }`}>
-                      <Video className={`w-6 h-6 ${
-                        project.status === 'activo' ? 'text-emerald-700' : 'text-gray-600'
-                      }`} />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-gray-900 mb-1">{project.name}</h4>
-                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
-                        project.status === 'activo'
+                      }`}
+                  >
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className={`p-3 rounded-lg transition-colors ${project.status === 'activo' ? 'bg-emerald-100' : 'bg-gray-100'
+                        }`}>
+                        <Video className={`w-6 h-6 ${project.status === 'activo' ? 'text-emerald-700' : 'text-gray-600'
+                          }`} />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-gray-900 mb-1">{project.name}</h4>
+                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${project.status === 'activo'
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                           : 'bg-gray-100 text-gray-700 border border-gray-300'
-                      }`}>
-                        {project.status === 'activo' ? '● Activo' : '○ Inactivo'}
-                      </span>
+                          }`}>
+                          {project.status === 'activo' ? '● Activo' : '○ Inactivo'}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <p className="text-gray-600 text-sm mb-3 line-clamp-2">{project.description}</p>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1 text-gray-600">
-                      <Users className="w-4 h-4" />
-                      <span>{volunteerCount}</span>
+                    <p className="text-gray-600 text-sm mb-3 line-clamp-2">{project.description}</p>
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="flex items-center gap-1 text-gray-600">
+                        <Users className="w-4 h-4" />
+                        <span>{volunteerCount}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-gray-600">
+                        <Video className="w-4 h-4" />
+                        <span>{projectMaterialsCount}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 text-gray-600">
-                      <Video className="w-4 h-4" />
-                      <span>{projectMaterialsCount}</span>
-                    </div>
-                  </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Carousel Navigation */}
+            {totalPages > 1 && (
+              <div className="flex justify-between items-center mt-6 px-2 animate-fade-in">
+                <button
+                  onClick={() => setProjectPage(prev => Math.max(0, prev - 1))}
+                  disabled={projectPage === 0}
+                  className="p-2 rounded-full bg-gray-100 text-gray-600 hover:bg-emerald-100 hover:text-emerald-600 disabled:opacity-30 disabled:hover:bg-gray-100 disabled:hover:text-gray-600 transition-colors"
+                >
+                  <ChevronLeft className="w-6 h-6" />
                 </button>
-              );
-            })}
+
+                <div className="flex gap-2">
+                  {Array.from({ length: totalPages }).map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setProjectPage(idx)}
+                      className={`w-2.5 h-2.5 rounded-full transition-all ${projectPage === idx ? 'bg-emerald-500 w-6' : 'bg-gray-300 hover:bg-gray-400'
+                        }`}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setProjectPage(prev => Math.min(totalPages - 1, prev + 1))}
+                  disabled={projectPage >= totalPages - 1}
+                  className="p-2 rounded-full bg-gray-100 text-gray-600 hover:bg-emerald-100 hover:text-emerald-600 disabled:opacity-30 disabled:hover:bg-gray-100 disabled:hover:text-gray-600 transition-colors"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center py-12 bg-gray-50 rounded-lg">
             <Video className="w-16 h-16 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600">No tienes proyectos asignados</p>
+            <p className="text-gray-600">
+              {projectSearch ? 'No se encontraron proyectos con ese nombre' : 'No tienes proyectos asignados'}
+            </p>
           </div>
         )}
       </div>
@@ -274,111 +378,155 @@ export function ContentManagement({ currentUser }: ContentManagementProps) {
           {loadingMaterials ? (
             <LoadingSpinner size="lg" message="Cargando videos de capacitación..." />
           ) : projectMaterials.length > 0 ? (
-            <div className="space-y-4">
-              {projectMaterials.map((material, index) => {
-                const viewCount = getViewCount(material.id);
-                const progressPercentage = getProgressPercentage(material.id);
-                const totalVolunteers = getProjectVolunteers(selectedProject.id).length;
-                const embedUrl = getYouTubeEmbedUrl(material.url);
+            <div className="overflow-hidden border border-gray-200 rounded-xl">
+              <table className="w-full text-left text-sm text-gray-600">
+                <thead className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <tr>
+                    <th className="px-4 py-4 w-12 text-center">#</th>
+                    <th className="px-4 py-4 w-24 text-center">Miniatura</th>
+                    <th className="px-4 py-4 w-48">Título</th>
+                    <th className="px-4 py-4">Descripción</th>
+                    <th className="px-4 py-4 w-32 text-center">Fecha</th>
+                    <th className="px-4 py-4 w-24 text-center">Vistas</th>
+                    <th className="px-4 py-4 w-28 text-center">Estado</th>
+                    <th className="px-4 py-4 w-48 text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {projectMaterials.map((material, index) => {
+                    const viewCount = getViewCount(material.id);
+                    const isPublished = material.published;
+                    const videoId = getYouTubeVideoId(material.url);
+                    const thumbnailUrl = videoId
+                      ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+                      : null;
 
-                return (
-                  <div key={material.id} className="border-2 border-gray-200 rounded-xl overflow-hidden hover:border-emerald-300 transition-all animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
-                    {/* Header */}
-                    <div className="p-5 bg-gradient-to-r from-gray-50 to-emerald-50">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-4 flex-1">
-                          <div className="bg-gradient-to-br from-emerald-500 to-teal-500 p-3 rounded-lg shadow-md">
-                            <Play className="w-6 h-6 text-white" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-semibold">
-                                #{index + 1}
-                              </span>
-                              <h4 className="text-gray-900">{material.title}</h4>
-                            </div>
-                            {material.description && (
-                              <p className="text-gray-600 text-sm mb-2">{material.description}</p>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
-                                ▶ YouTube
-                              </span>
-                              {material.published ? (
-                                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                  ✓ Publicado
-                                </span>
-                              ) : (
-                                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                                  ○ Borrador
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEditMaterial(material)}
-                            className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
-                            title="Editar"
-                          >
-                            <Edit className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteMaterial(material.id, material.title)}
-                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                            title="Eliminar"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
+                    return (
+                      <tr key={material.id} className="hover:bg-gray-50/60 transition-colors group">
+                        {/* Index */}
+                        <td className="px-4 py-4 text-center font-mono text-xs text-gray-400">
+                          {String(index + 1).padStart(2, '0')}
+                        </td>
 
-                      {/* Stats - Solo para materiales publicados */}
-                      {material.published && totalVolunteers > 0 && (
-                        <div className="grid grid-cols-3 gap-4 mt-4 p-4 bg-white rounded-lg border-2 border-gray-200">
-                          <div className="text-center">
-                            <div className="flex items-center justify-center gap-2 mb-1">
-                              <Eye className="w-5 h-5 text-emerald-600" />
-                              <span className="text-2xl font-bold text-gray-900">{viewCount}</span>
+                        {/* Thumbnail */}
+                        <td className="px-4 py-4">
+                          {thumbnailUrl ? (
+                            <div className="w-20 h-12 rounded-lg overflow-hidden border border-gray-200 shadow-sm relative group-hover:scale-105 transition-transform">
+                              <img
+                                src={thumbnailUrl}
+                                alt={material.title}
+                                className="w-full h-full object-cover"
+                              />
                             </div>
-                            <p className="text-xs text-gray-600">de {totalVolunteers} vieron</p>
-                          </div>
-                          <div className="text-center border-l-2 border-r-2 border-gray-200">
-                            <div className="flex items-center justify-center gap-2 mb-1">
-                              <TrendingUp className="w-5 h-5 text-teal-600" />
-                              <span className="text-2xl font-bold text-gray-900">{progressPercentage}%</span>
+                          ) : (
+                            <div className="w-20 h-12 rounded-lg bg-gray-100 flex items-center justify-center border border-gray-200">
+                              <Video className="w-5 h-5 text-gray-400" />
                             </div>
-                            <p className="text-xs text-gray-600">Progreso promedio</p>
+                          )}
+                        </td>
+
+                        {/* Title */}
+                        <td className="px-4 py-4">
+                          <span className="font-bold text-gray-900 line-clamp-2" title={material.title}>
+                            {material.title}
+                          </span>
+                        </td>
+
+                        {/* Description */}
+                        <td className="px-4 py-4">
+                          <span className="text-gray-500 text-xs line-clamp-2" title={material.description}>
+                            {material.description || 'Sin descripción'}
+                          </span>
+                        </td>
+
+                        {/* Date */}
+                        <td className="px-4 py-4 text-center text-xs text-gray-500">
+                          {material.createdAt ? new Date(material.createdAt).toLocaleDateString('es-ES', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          }) : '-'}
+                        </td>
+
+                        {/* View Count */}
+                        <td className="px-4 py-4 text-center">
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 border border-purple-100 text-purple-700">
+                            <Eye className="w-3.5 h-3.5" />
+                            <span className="text-xs font-bold">{viewCount}</span>
                           </div>
-                          <div className="text-center">
+                        </td>
+
+                        {/* Status Badge */}
+                        <td className="px-4 py-4 text-center">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${isPublished
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                            : 'bg-gray-100 text-gray-600 border-gray-200'
+                            }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isPublished ? 'bg-emerald-500' : 'bg-gray-500'}`}></span>
+                            {isPublished ? 'Publicado' : 'Borrador'}
+                          </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-4 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            {/* View Stats Button */}
                             <button
                               onClick={() => setViewingProgress(material)}
-                              className="text-purple-600 hover:text-purple-800 transition-colors"
+                              className="group flex items-center justify-center p-2 text-gray-400 hover:text-purple-700 hover:bg-purple-100 rounded-lg transition-all duration-300 ease-out hover:w-auto hover:px-3 hover:justify-start shadow-sm hover:shadow-md"
+                              title="Ver Estadísticas"
                             >
-                              <Users className="w-7 h-7 mx-auto mb-1" />
-                              <p className="text-xs font-semibold">Ver Detalles</p>
+                              <BarChart2 className="w-4 h-4" />
+                              <span className="max-w-0 overflow-hidden group-hover:max-w-xs opacity-0 group-hover:opacity-100 transition-all duration-300 ml-0 group-hover:ml-2 whitespace-nowrap text-xs font-bold">
+                                Ver
+                              </span>
+                            </button>
+
+                            {/* Edit Button */}
+                            <button
+                              onClick={() => handleEditMaterial(material)}
+                              className="group flex items-center justify-center p-2 text-gray-400 hover:text-blue-700 hover:bg-blue-100 rounded-lg transition-all duration-300 ease-out hover:w-auto hover:px-3 hover:justify-start shadow-sm hover:shadow-md"
+                              title="Editar"
+                            >
+                              <Edit className="w-4 h-4" />
+                              <span className="max-w-0 overflow-hidden group-hover:max-w-xs opacity-0 group-hover:opacity-100 transition-all duration-300 ml-0 group-hover:ml-2 whitespace-nowrap text-xs font-bold">
+                                Editar
+                              </span>
+                            </button>
+
+                            {/* Toggle Publish Button */}
+                            <button
+                              onClick={() => handleTogglePublish(material)}
+                              className={`group flex items-center justify-center p-2 rounded-lg transition-all duration-300 ease-out hover:w-auto hover:px-3 hover:justify-start shadow-sm hover:shadow-md ${isPublished
+                                ? 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-100' // Published = Emerald Theme
+                                : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100' // Draft = Gray Theme
+                                }`}
+                              title={isPublished ? "Ocultar Video" : "Publicar Video"}
+                            >
+                              {isPublished ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                              <span className="max-w-0 overflow-hidden group-hover:max-w-xs opacity-0 group-hover:opacity-100 transition-all duration-300 ml-0 group-hover:ml-2 whitespace-nowrap text-xs font-bold">
+                                {isPublished ? "Ocultar" : "Publicar"}
+                              </span>
+                            </button>
+
+                            {/* Delete Button */}
+                            <button
+                              onClick={() => handleDeleteMaterial(material.id, material.title)}
+                              className="group flex items-center justify-center p-2 text-gray-400 hover:text-red-700 hover:bg-red-100 rounded-lg transition-all duration-300 ease-out hover:w-auto hover:px-3 hover:justify-start shadow-sm hover:shadow-md"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              <span className="max-w-0 overflow-hidden group-hover:max-w-xs opacity-0 group-hover:opacity-100 transition-all duration-300 ml-0 group-hover:ml-2 whitespace-nowrap text-xs font-bold">
+                                Eliminar
+                              </span>
                             </button>
                           </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Video Embed */}
-                    {embedUrl && (
-                      <div className="aspect-video bg-black">
-                        <iframe
-                          src={embedUrl}
-                          className="w-full h-full"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                          title={material.title}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-emerald-50 rounded-xl border-2 border-dashed border-gray-300">
@@ -472,7 +620,7 @@ export function ContentManagement({ currentUser }: ContentManagementProps) {
                           )}
                         </div>
                       </div>
-                      
+
                       {/* Progress Bar */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">

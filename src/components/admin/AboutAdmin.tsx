@@ -77,7 +77,10 @@ export function AboutAdmin() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-gray-900">Gestión de Contenido "Nosotros"</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Gestión de Contenido "Nosotros"</h2>
+          <p className="text-gray-500 mt-1">Edita la información institucional visible en el landing</p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -119,7 +122,7 @@ export function AboutAdmin() {
 
         <div className="bg-white p-6 rounded-xl border border-gray-200">
           <h3 className="text-gray-900 mb-4">Valores</h3>
-          
+
           <div className="flex gap-2 mb-4">
             <input
               type="text"

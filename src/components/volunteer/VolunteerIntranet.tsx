@@ -45,16 +45,16 @@ export function VolunteerIntranet({ volunteer, onLogout, onVolunteerUpdate }: Vo
   const handleCancelApplication = async (app: any) => {
     if (window.confirm(`¿Estás seguro de cancelar tu postulación a "${app.convocatoriaTitle}"? Esta acción no se puede deshacer.`)) {
       try {
-        console.log('Cancelling application with data:', { 
-          email: app.userEmail, 
+        console.log('Cancelling application with data:', {
+          email: app.userEmail,
           id: app.id,
-          fullApp: app 
+          fullApp: app
         });
-        
+
         if (!app.userEmail || !app.id) {
           throw new Error('Application data incomplete - missing email or id');
         }
-        
+
         await apiPut(`/applications/${app.userEmail}/${app.id}`, {
           status: 'cancelled',
           cancelledDate: new Date().toISOString().split('T')[0],
@@ -214,9 +214,8 @@ export function VolunteerIntranet({ volunteer, onLogout, onVolunteerUpdate }: Vo
                 return (
                   <div
                     key={convocatoria.id}
-                    className={`bg-white p-6 rounded-xl border-2 transition-all ${
-                      applied ? 'border-green-200 bg-green-50' : 'border-gray-200'
-                    }`}
+                    className={`bg-white p-6 rounded-xl border-2 transition-all ${applied ? 'border-green-200 bg-green-50' : 'border-gray-200'
+                      }`}
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
@@ -241,43 +240,9 @@ export function VolunteerIntranet({ volunteer, onLogout, onVolunteerUpdate }: Vo
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
                         <Calendar className="w-4 h-4 text-blue-600" />
                         <span>
-                          {new Date(convocatoria.startDate).toLocaleDateString('es-ES')} -{' '}
-                          {new Date(convocatoria.endDate).toLocaleDateString('es-ES')}
+                          {new Date(convocatoria.startDate).toLocaleDateString('es-ES')}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-gray-600 text-sm">
-                        <Users className="w-4 h-4 text-blue-600" />
-                        <span>
-                          {convocatoria.vacancies - (convocatoria.acceptedVolunteers || 0)} vacantes disponibles
-                        </span>
-                      </div>
-                    </div>
-
-                    {convocatoria.requirements && (
-                      <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                        <p className="text-gray-700 text-sm">
-                          <span className="font-medium">Requisitos:</span> {convocatoria.requirements}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex gap-3">
-                      {!applied ? (
-                        <button
-                          onClick={() => setSelectedConvocatoria(convocatoria)}
-                          disabled={convocatoria.vacancies - (convocatoria.acceptedVolunteers || 0) <= 0}
-                          className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                        >
-                          {convocatoria.vacancies - (convocatoria.acceptedVolunteers || 0) <= 0
-                            ? 'Sin Vacantes'
-                            : 'Postular Ahora'}
-                        </button>
-                      ) : (
-                        <div className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg">
-                          <Clock className="w-4 h-4" />
-                          <span>Postulación en revisión</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -298,7 +263,7 @@ export function VolunteerIntranet({ volunteer, onLogout, onVolunteerUpdate }: Vo
             <div className="space-y-4">
               {applications.map((app) => {
                 const conv = convocatorias.find(c => c.id === app.convocatoriaId);
-                
+
                 // Get status info
                 const getStatusDisplay = (status: string) => {
                   switch (status) {
@@ -319,7 +284,7 @@ export function VolunteerIntranet({ volunteer, onLogout, onVolunteerUpdate }: Vo
 
                 const statusInfo = getStatusDisplay(app.status);
                 const StatusIcon = statusInfo.icon;
-                
+
                 return (
                   <div key={app.id} className="bg-white p-6 rounded-xl border-2 border-gray-200">
                     <div className="flex items-start justify-between mb-4">
@@ -348,41 +313,39 @@ export function VolunteerIntranet({ volunteer, onLogout, onVolunteerUpdate }: Vo
                             { step: 2, label: 'Evaluación', status: 'interview_confirmed' },
                             { step: 3, label: 'Aceptado', status: 'accepted' },
                           ].map(({ step, label, status }) => {
-                            const isComplete = app.status === 'accepted' || 
+                            const isComplete = app.status === 'accepted' ||
                               (status === 'pending' && ['pending', 'interview_pending', 'interview_confirmed', 'accepted'].includes(app.status)) ||
                               (status === 'interview_pending' && ['interview_pending', 'interview_confirmed', 'accepted'].includes(app.status)) ||
                               (status === 'interview_confirmed' && ['interview_confirmed', 'accepted'].includes(app.status)) ||
                               (status === 'accepted' && app.status === 'accepted');
-                            
+
                             const isCurrent = app.status === status;
-                            
+
                             return (
                               <div key={step} className="flex flex-col items-center flex-1 z-10">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                                  isComplete 
-                                    ? 'bg-blue-600 text-white' 
-                                    : isCurrent
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isComplete
+                                  ? 'bg-blue-600 text-white'
+                                  : isCurrent
                                     ? 'bg-orange-500 text-white animate-pulse'
                                     : 'bg-gray-200 text-gray-400'
-                                }`}>
+                                  }`}>
                                   {isComplete ? '✓' : step + 1}
                                 </div>
-                                <p className={`text-xs mt-2 text-center ${
-                                  isComplete || isCurrent ? 'text-blue-600 font-medium' : 'text-gray-400'
-                                }`}>
+                                <p className={`text-xs mt-2 text-center ${isComplete || isCurrent ? 'text-blue-600 font-medium' : 'text-gray-400'
+                                  }`}>
                                   {label}
                                 </p>
                               </div>
                             );
                           })}
                           <div className="absolute top-4 left-0 right-0 h-1 bg-gray-200 -z-0" style={{ margin: '0 2rem' }}>
-                            <div 
+                            <div
                               className="h-full bg-blue-600 transition-all duration-500"
                               style={{
                                 width: app.status === 'accepted' ? '100%' :
-                                       app.status === 'interview_confirmed' ? '66%' :
-                                       app.status === 'interview_pending' ? '33%' :
-                                       '0%'
+                                  app.status === 'interview_confirmed' ? '66%' :
+                                    app.status === 'interview_pending' ? '33%' :
+                                      '0%'
                               }}
                             />
                           </div>

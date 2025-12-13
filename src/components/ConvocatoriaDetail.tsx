@@ -1,4 +1,4 @@
-import { ArrowLeft, Calendar, MapPin, Users, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Users, CheckCircle, FolderOpen } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 
 interface ConvocatoriaDetailProps {
@@ -9,14 +9,19 @@ interface ConvocatoriaDetailProps {
 export function ConvocatoriaDetail({ convocatoria, onBack }: ConvocatoriaDetailProps) {
   const { data: volunteersData } = useApi<any[]>('/volunteers');
   const { data: assignmentsData } = useApi<any[]>('/project-assignments');
+  const { data: projectsData } = useApi<any[]>('/projects');
+
   const volunteers = volunteersData || [];
   const assignments = assignmentsData || [];
-  
+  const projects = projectsData || [];
+
+  const project = projects.find(p => p.id === convocatoria.projectId);
+
   // Get volunteers assigned to the convocatoria's project
   const assignedVolunteers = volunteers.filter((volunteer) => {
     return assignments.some(
-      (assignment) => 
-        assignment.volunteerId === volunteer.id && 
+      (assignment) =>
+        assignment.volunteerId === volunteer.id &&
         assignment.convocatoriaId === convocatoria.id
     );
   });
@@ -36,32 +41,42 @@ export function ConvocatoriaDetail({ convocatoria, onBack }: ConvocatoriaDetailP
           <div>
             <h2 className="text-gray-900 mb-2">{convocatoria.title}</h2>
             <span
-              className={`inline-block px-3 py-1 rounded-full text-sm ${
-                convocatoria.status === 'activa'
-                  ? 'bg-green-100 text-green-700'
-                  : convocatoria.status === 'cerrada'
+              className={`inline-block px-3 py-1 rounded-full text-sm ${convocatoria.status === 'activa'
+                ? 'bg-green-100 text-green-700'
+                : convocatoria.status === 'cerrada'
                   ? 'bg-gray-100 text-gray-700'
                   : 'bg-orange-100 text-orange-700'
-              }`}
+                }`}
             >
               {convocatoria.status === 'activa' ? 'Activa' : convocatoria.status === 'cerrada' ? 'Cerrada' : 'En Proceso'}
             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="flex items-center gap-3 p-4 bg-indigo-50 rounded-lg">
+            <FolderOpen className="w-8 h-8 text-indigo-600" />
+            <div className="overflow-hidden">
+              <p className="text-gray-600 text-sm">Proyecto</p>
+              <p className="text-gray-900 font-medium truncate" title={project?.name || 'No asignado'}>
+                {project ? project.name : 'No asignado'}
+              </p>
+            </div>
+          </div>
           <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
             <MapPin className="w-8 h-8 text-blue-600" />
-            <div>
+            <div className="overflow-hidden">
               <p className="text-gray-600 text-sm">Área</p>
-              <p className="text-gray-900">{convocatoria.area}</p>
+              <p className="text-gray-900 font-medium truncate" title={convocatoria.area}>
+                {convocatoria.area}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg">
             <Calendar className="w-8 h-8 text-green-600" />
             <div>
               <p className="text-gray-600 text-sm">Periodo</p>
-              <p className="text-gray-900">
+              <p className="text-gray-900 font-medium whitespace-nowrap">
                 {new Date(convocatoria.startDate).toLocaleDateString('es-ES')} -{' '}
                 {new Date(convocatoria.endDate).toLocaleDateString('es-ES')}
               </p>
@@ -71,7 +86,7 @@ export function ConvocatoriaDetail({ convocatoria, onBack }: ConvocatoriaDetailP
             <Users className="w-8 h-8 text-purple-600" />
             <div>
               <p className="text-gray-600 text-sm">Voluntarios</p>
-              <p className="text-gray-900">{convocatoria.acceptedVolunteers || 0} / {convocatoria.vacancies}</p>
+              <p className="text-gray-900 font-medium">{assignedVolunteers.length} / {convocatoria.vacancies}</p>
             </div>
           </div>
         </div>
@@ -94,7 +109,7 @@ export function ConvocatoriaDetail({ convocatoria, onBack }: ConvocatoriaDetailP
       {/* Assigned Volunteers */}
       <div className="bg-white p-6 rounded-xl border border-gray-200">
         <h3 className="text-gray-900 mb-4">Voluntarios Asignados</h3>
-        
+
         {assignedVolunteers.length > 0 ? (
           <div className="space-y-3">
             {assignedVolunteers.map((volunteer) => (

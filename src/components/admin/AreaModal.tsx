@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Camera, Image as ImageIcon } from 'lucide-react';
 import { projectId, publicAnonKey } from '../../utils/supabase/info.tsx';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 interface AreaModalProps {
   area: any;
@@ -9,6 +10,7 @@ interface AreaModalProps {
 }
 
 export function AreaModal({ area, onClose, onSave }: AreaModalProps) {
+  const { showSuccess, showError, showLoading, hideNotification } = useNotifications();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -27,10 +29,10 @@ export function AreaModal({ area, onClose, onSave }: AreaModalProps) {
         name: area.name,
         description: area.description,
         icon: area.icon,
-        imageUrl: area.imageUrl || '',
+        imageUrl: area.imageUrl || area.image_url || '',
         published: area.published !== undefined ? area.published : true,
       });
-      setImagePreview(area.imageUrl || '');
+      setImagePreview(area.imageUrl || area.image_url || '');
     }
   }, [area]);
 
@@ -40,17 +42,19 @@ export function AreaModal({ area, onClose, onSave }: AreaModalProps) {
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('La imagen debe ser menor a 5MB');
+      showError('Error', 'La imagen debe ser menor a 5MB');
       return;
     }
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      alert('Solo se permiten archivos de imagen');
+      showError('Error', 'Solo se permiten archivos de imagen');
       return;
     }
 
     setUploading(true);
+    const loadingId = showLoading('Subiendo imagen...', 'Por favor espere');
+
     try {
       const formDataUpload = new FormData();
       formDataUpload.append('image', file);
@@ -65,16 +69,19 @@ export function AreaModal({ area, onClose, onSave }: AreaModalProps) {
       });
 
       const result = await response.json();
+      hideNotification(loadingId);
+
       if (result.success) {
         setFormData({ ...formData, imageUrl: result.data.url });
         setImagePreview(result.data.url);
-        alert('Imagen subida exitosamente');
+        showSuccess('Imagen subida', 'La imagen se ha subido exitosamente');
       } else {
-        alert('Error al subir la imagen: ' + result.error);
+        showError('Error', 'Error al subir la imagen: ' + result.error);
       }
     } catch (error) {
+      hideNotification(loadingId);
       console.error('Error uploading image:', error);
-      alert('Error al subir la imagen');
+      showError('Error', 'Error al subir la imagen');
     } finally {
       setUploading(false);
     }

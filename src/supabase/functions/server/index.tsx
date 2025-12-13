@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Hono } from 'npm:hono';
 import { cors } from 'npm:hono/cors';
 import { logger } from 'npm:hono/logger';
@@ -16,11 +17,11 @@ const getApplicationsWithKeys = async () => {
     .from("kv_store_f99e977c")
     .select("key, value")
     .like("key", "application:%");
-  
+
   if (error) {
     throw new Error(error.message);
   }
-  
+
   return data?.map((d) => ({ key: d.key, value: d.value })) ?? [];
 };
 
@@ -210,19 +211,19 @@ app.get('/make-server-f99e977c/volunteers', async (c) => {
 app.post('/make-server-f99e977c/volunteers', async (c) => {
   try {
     const volunteerData = await c.req.json();
-    
+
     // Check if email already exists
     const users = await kv.getByPrefix('user:');
     const existingUser = users.find(u => u.email === volunteerData.email);
     if (existingUser) {
       return c.json({ success: false, error: 'Email already registered' }, 400);
     }
-    
+
     const id = Date.now().toString();
-    
+
     // Remove password from volunteer data (will be stored separately in localStorage on client)
     const { password, ...dataWithoutPassword } = volunteerData;
-    
+
     const volunteer = {
       id,
       ...dataWithoutPassword,
@@ -230,7 +231,7 @@ app.post('/make-server-f99e977c/volunteers', async (c) => {
       status: 'activo',
       registeredDate: new Date().toISOString().split('T')[0],
     };
-    
+
     // Create user with volunteer role
     await kv.set(`user:${id}`, volunteer);
     return c.json({ success: true, data: volunteer });
@@ -246,11 +247,11 @@ app.put('/make-server-f99e977c/volunteers/:id', async (c) => {
     const id = c.req.param('id');
     const updates = await c.req.json();
     const existing = await kv.get(`user:${id}`);
-    
+
     if (!existing || existing.role !== 'volunteer') {
       return c.json({ success: false, error: 'Volunteer not found' }, 404);
     }
-    
+
     const updated = { ...existing, ...updates };
     await kv.set(`user:${id}`, updated);
     return c.json({ success: true, data: updated });
@@ -265,16 +266,16 @@ app.delete('/make-server-f99e977c/volunteers/:id', async (c) => {
   try {
     const id = c.req.param('id');
     const user = await kv.get(`user:${id}`);
-    
+
     if (!user || user.role !== 'volunteer') {
       return c.json({ success: false, error: 'Volunteer not found' }, 404);
     }
-    
+
     // Delete all user's applications
     const applications = await kv.getByPrefix(`application:${user.email}:`);
     for (const app of applications) {
       await kv.del(`application:${user.email}:${app.id}`);
-      
+
       // Decrease applicants count in convocatoria
       if (app.status !== 'cancelled') {
         const convocatoria = await kv.get(`convocatoria:${app.convocatoriaId}`);
@@ -286,7 +287,7 @@ app.delete('/make-server-f99e977c/volunteers/:id', async (c) => {
         }
       }
     }
-    
+
     // Delete user
     await kv.del(`user:${id}`);
     return c.json({ success: true });
@@ -313,14 +314,14 @@ app.get('/make-server-f99e977c/users', async (c) => {
 app.post('/make-server-f99e977c/users', async (c) => {
   try {
     const userData = await c.req.json();
-    
+
     // Check if email already exists
     const users = await kv.getByPrefix('user:');
     const existingUser = users.find(u => u.email === userData.email);
     if (existingUser) {
       return c.json({ success: false, error: 'Email already registered' }, 400);
     }
-    
+
     const id = Date.now().toString();
     const user = {
       id,
@@ -328,7 +329,7 @@ app.post('/make-server-f99e977c/users', async (c) => {
       role: 'user', // Default role: user
       registeredDate: new Date().toISOString().split('T')[0],
     };
-    
+
     await kv.set(`user:${id}`, user);
     return c.json({ success: true, data: user });
   } catch (error) {
@@ -356,11 +357,11 @@ app.put('/make-server-f99e977c/users/:id/role', async (c) => {
     const id = c.req.param('id');
     const { role } = await c.req.json();
     const existing = await kv.get(`user:${id}`);
-    
+
     if (!existing) {
       return c.json({ success: false, error: 'User not found' }, 404);
     }
-    
+
     const updated = { ...existing, role };
     await kv.set(`user:${id}`, updated);
     return c.json({ success: true, data: updated });
@@ -376,11 +377,11 @@ app.put('/make-server-f99e977c/users/:id', async (c) => {
     const id = c.req.param('id');
     const userData = await c.req.json();
     const existing = await kv.get(`user:${id}`);
-    
+
     if (!existing) {
       return c.json({ success: false, error: 'User not found' }, 404);
     }
-    
+
     const updated = { ...existing, ...userData, id }; // Preserve ID
     await kv.set(`user:${id}`, updated);
     return c.json({ success: true, data: updated });
@@ -395,24 +396,24 @@ app.delete('/make-server-f99e977c/users/:id', async (c) => {
   try {
     const id = c.req.param('id');
     const user = await kv.get(`user:${id}`);
-    
+
     if (!user) {
       return c.json({ success: false, error: 'User not found' }, 404);
     }
-    
+
     // Prevent deletion of admin accounts
     if (user.role === 'admin' || user.role === 'admin_master') {
-      return c.json({ 
-        success: false, 
-        error: 'No se puede eliminar cuentas de administrador' 
+      return c.json({
+        success: false,
+        error: 'No se puede eliminar cuentas de administrador'
       }, 403);
     }
-    
+
     // Delete all user's applications
     const applications = await kv.getByPrefix(`application:${user.email}:`);
     for (const app of applications) {
       await kv.del(`application:${user.email}:${app.id}`);
-      
+
       // Decrease applicants count in convocatoria
       if (app.status !== 'cancelled') {
         const convocatoria = await kv.get(`convocatoria:${app.convocatoriaId}`);
@@ -424,10 +425,10 @@ app.delete('/make-server-f99e977c/users/:id', async (c) => {
         }
       }
     }
-    
+
     // Delete user
     await kv.del(`user:${id}`);
-    
+
     return c.json({ success: true });
   } catch (error) {
     console.log('Error deleting user:', error);
@@ -459,7 +460,7 @@ app.post('/make-server-f99e977c/projects', async (c) => {
       status: 'activo',
       createdDate: new Date().toISOString().split('T')[0],
     };
-    
+
     await kv.set(`project:${id}`, project);
     return c.json({ success: true, data: project });
   } catch (error) {
@@ -474,11 +475,11 @@ app.put('/make-server-f99e977c/projects/:id', async (c) => {
     const id = c.req.param('id');
     const updates = await c.req.json();
     const existing = await kv.get(`project:${id}`);
-    
+
     if (!existing) {
       return c.json({ success: false, error: 'Project not found' }, 404);
     }
-    
+
     const updated = { ...existing, ...updates };
     await kv.set(`project:${id}`, updated);
     return c.json({ success: true, data: updated });
@@ -526,7 +527,7 @@ app.post('/make-server-f99e977c/project-assignments', async (c) => {
       assignedAt: new Date().toISOString(),
       status: 'active',
     };
-    
+
     await kv.set(`project-assignment:${assignmentId}`, assignment);
     return c.json({ success: true, data: assignment });
   } catch (error) {
@@ -572,7 +573,7 @@ app.post('/make-server-f99e977c/convocatorias', async (c) => {
       acceptedVolunteers: 0,
       createdDate: new Date().toISOString().split('T')[0],
     };
-    
+
     await kv.set(`convocatoria:${id}`, convocatoria);
     return c.json({ success: true, data: convocatoria });
   } catch (error) {
@@ -587,11 +588,11 @@ app.put('/make-server-f99e977c/convocatorias/:id', async (c) => {
     const id = c.req.param('id');
     const updates = await c.req.json();
     const existing = await kv.get(`convocatoria:${id}`);
-    
+
     if (!existing) {
       return c.json({ success: false, error: 'Convocatoria not found' }, 404);
     }
-    
+
     const updated = { ...existing, ...updates };
     await kv.set(`convocatoria:${id}`, updated);
     return c.json({ success: true, data: updated });
@@ -605,22 +606,22 @@ app.put('/make-server-f99e977c/convocatorias/:id', async (c) => {
 app.delete('/make-server-f99e977c/convocatorias/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    
+
     // Check if there are pending applications
     const applications = await kv.getByPrefix('application:');
     const hasPendingApplications = applications.some(
-      (app: any) => app.convocatoriaId === id && 
-      ['pending', 'interview_pending', 'interview_confirmed'].includes(app.status)
+      (app: any) => app.convocatoriaId === id &&
+        ['pending', 'interview_pending', 'interview_confirmed'].includes(app.status)
     );
-    
+
     if (hasPendingApplications) {
-      return c.json({ 
-        success: false, 
+      return c.json({
+        success: false,
         error: 'No se puede eliminar una convocatoria con postulaciones en proceso. Márquela como terminada en su lugar.',
         cannotDelete: true
       }, 400);
     }
-    
+
     // If no pending applications, mark as terminated instead of deleting
     const existing = await kv.get(`convocatoria:${id}`);
     if (existing) {
@@ -628,7 +629,7 @@ app.delete('/make-server-f99e977c/convocatorias/:id', async (c) => {
       await kv.set(`convocatoria:${id}`, updated);
       return c.json({ success: true, data: updated, terminated: true });
     }
-    
+
     return c.json({ success: false, error: 'Convocatoria not found' }, 404);
   } catch (error) {
     console.log('Error deleting convocatoria:', error);
@@ -643,77 +644,77 @@ app.get('/make-server-f99e977c/applications', async (c) => {
   try {
     // Get all applications with their keys
     const applicationsWithKeys = await getApplicationsWithKeys();
-    
+
     console.log('GET /applications - Found applications:', applicationsWithKeys.length);
-    
+
     // Clean up and validate applications
     const validApplications = [];
     const keysToDelete = [];
-    
+
     for (const item of applicationsWithKeys) {
       const { key, value } = item;
       let app = { ...value };
       let needsUpdate = false;
       let shouldDelete = false;
-      
+
       console.log('GET /applications - Processing:', { key, hasEmail: !!app.userEmail, hasId: !!app.id });
-      
+
       // Try to extract email and id from the key if missing
       // Key format: application:email:id
       const keyParts = key.split(':');
-      
+
       if (keyParts.length !== 3) {
         console.log('GET /applications - Invalid key format, marking for deletion:', key);
         keysToDelete.push(key);
         shouldDelete = true;
       } else {
         const [, keyEmail, keyId] = keyParts;
-        
+
         // Check and fix missing email
         if (!app.userEmail && keyEmail) {
           console.log('GET /applications - Missing userEmail, extracting from key:', keyEmail);
           app.userEmail = keyEmail;
           needsUpdate = true;
         }
-        
+
         // Check and fix missing id
         if (!app.id && keyId) {
           console.log('GET /applications - Missing id, extracting from key:', keyId);
           app.id = keyId;
           needsUpdate = true;
         }
-        
+
         // If still missing critical data, mark for deletion
         if (!app.userEmail || !app.id) {
           console.log('GET /applications - Still missing critical data after extraction, marking for deletion');
           keysToDelete.push(key);
           shouldDelete = true;
         }
-        
+
         // Update the application in the database if we fixed it
         if (needsUpdate && !shouldDelete) {
           console.log('GET /applications - Updating application with fixed data:', app);
           await kv.set(key, app);
         }
       }
-      
+
       // Only add to valid applications if not marked for deletion
       if (!shouldDelete) {
         validApplications.push(app);
       }
     }
-    
+
     // Delete corrupted applications
     if (keysToDelete.length > 0) {
       console.log('GET /applications - Deleting corrupted applications:', keysToDelete);
       await kv.mdel(keysToDelete);
     }
-    
+
     console.log('GET /applications - Valid applications:', validApplications.length);
     if (validApplications.length > 0) {
       console.log('GET /applications - Sample application:', validApplications[0]);
     }
-    
+
     return c.json({ success: true, data: validApplications });
   } catch (error) {
     console.log('Error fetching all applications:', error);
@@ -744,9 +745,9 @@ app.post('/make-server-f99e977c/applications', async (c) => {
       status: 'pending',
       appliedDate: new Date().toISOString().split('T')[0],
     };
-    
+
     await kv.set(`application:${applicationData.userEmail}:${id}`, application);
-    
+
     // Update convocatoria applicants count
     const convocatoria = await kv.get(`convocatoria:${applicationData.convocatoriaId}`);
     if (convocatoria) {
@@ -755,7 +756,7 @@ app.post('/make-server-f99e977c/applications', async (c) => {
         applicants: (convocatoria.applicants || 0) + 1,
       });
     }
-    
+
     return c.json({ success: true, data: application });
   } catch (error) {
     console.log('Error creating application:', error);
@@ -769,19 +770,19 @@ app.put('/make-server-f99e977c/applications/:email/:id', async (c) => {
     const email = c.req.param('email');
     const id = c.req.param('id');
     const updates = await c.req.json();
-    
+
     console.log('PUT /applications - Params:', { email, id });
     console.log('PUT /applications - Looking for key:', `application:${email}:${id}`);
-    
+
     let existing = await kv.get(`application:${email}:${id}`);
     let actualKey = `application:${email}:${id}`;
-    
+
     // If not found, try to find it by ID in all applications
     if (!existing) {
       console.log('PUT /applications - Application not found with email, trying to find by ID...');
       const allApps = await kv.getByPrefix(`application:`);
       const matchingApp = allApps.find((a: any) => a.id === id);
-      
+
       if (matchingApp) {
         console.log('PUT /applications - Found application by ID:', matchingApp);
         existing = matchingApp;
@@ -791,10 +792,10 @@ app.put('/make-server-f99e977c/applications/:email/:id', async (c) => {
         return c.json({ success: false, error: 'Application not found' }, 404);
       }
     }
-    
+
     const updated = { ...existing, ...updates };
     await kv.set(actualKey, updated);
-    
+
     // If accepted, create volunteer and update user role
     if (updates.status === 'accepted') {
       // Update user role to 'volunteer'
@@ -802,7 +803,7 @@ app.put('/make-server-f99e977c/applications/:email/:id', async (c) => {
       const user = users.find((u: any) => u.email === existing.userEmail);
       if (user) {
         await kv.set(`user:${user.id}`, { ...user, role: 'volunteer' });
-        
+
         // Auto-assign volunteer to the convocatoria's project
         const convocatoria = await kv.get(`convocatoria:${existing.convocatoriaId}`);
         if (convocatoria && convocatoria.projectId) {
@@ -817,7 +818,7 @@ app.put('/make-server-f99e977c/applications/:email/:id', async (c) => {
           };
           await kv.set(`project-assignment:${assignmentId}`, assignment);
         }
-        
+
         // Increment acceptedVolunteers count in convocatoria
         if (convocatoria) {
           await kv.set(`convocatoria:${existing.convocatoriaId}`, {
@@ -827,7 +828,7 @@ app.put('/make-server-f99e977c/applications/:email/:id', async (c) => {
         }
       }
     }
-    
+
     // If cancelled by user, decrease applicants count
     if (updates.status === 'cancelled') {
       const convocatoria = await kv.get(`convocatoria:${existing.convocatoriaId}`);
@@ -838,7 +839,7 @@ app.put('/make-server-f99e977c/applications/:email/:id', async (c) => {
         });
       }
     }
-    
+
     return c.json({ success: true, data: updated });
   } catch (error) {
     console.log('Error updating application:', error);
@@ -851,12 +852,12 @@ app.delete('/make-server-f99e977c/applications/:email/:id', async (c) => {
   try {
     const email = c.req.param('email');
     const id = c.req.param('id');
-    
+
     const existing = await kv.get(`application:${email}:${id}`);
     if (!existing) {
       return c.json({ success: false, error: 'Application not found' }, 404);
     }
-    
+
     // Decrease applicants count
     const convocatoria = await kv.get(`convocatoria:${existing.convocatoriaId}`);
     if (convocatoria && convocatoria.applicants > 0) {
@@ -865,7 +866,7 @@ app.delete('/make-server-f99e977c/applications/:email/:id', async (c) => {
         applicants: convocatoria.applicants - 1,
       });
     }
-    
+
     await kv.del(`application:${email}:${id}`);
     return c.json({ success: true });
   } catch (error) {
@@ -903,6 +904,106 @@ app.get('/make-server-f99e977c/user-auth/:email', async (c) => {
   }
 });
 
+// ============ UPLOAD ENDPOINTS ============
+
+app.post('/make-server-f99e977c/upload/image', async (c) => {
+  console.log('UPLOAD: Starting image upload request');
+  try {
+    const body = await c.req.parseBody();
+    console.log('UPLOAD: Body parsed', Object.keys(body));
+
+    // In Deno environment, file uploads might need special handling
+    const image = body['image'];
+    const type = body['type'] || 'general';
+
+    console.log('UPLOAD: Image received', image ? 'yes' : 'no', typeof image);
+
+    // Looser validation for File object
+    // Check if it has name and stream property or if it's a File
+    const isValidFile = image && (
+      image instanceof File ||
+      (typeof image === 'object' && 'name' in image && ('stream' in image || 'arrayBuffer' in image))
+    );
+
+    if (!isValidFile) {
+      console.log('UPLOAD: Invalid file object', image);
+      return c.json({ success: false, error: 'No valid image file provided' }, 400);
+    }
+
+    // Cast to File for TypeScript, though at runtime we just trust it has necessary methods
+    const fileObject = image as File;
+    console.log('UPLOAD: File details', {
+      name: fileObject.name,
+      type: fileObject.type,
+      size: fileObject.size
+    });
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+
+    const bucketName = 'images';
+
+    // Check/Create bucket
+    try {
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const bucketExists = buckets?.find(b => b.name === bucketName);
+
+      if (!bucketExists) {
+        console.log('UPLOAD: Creating bucket', bucketName);
+        const { error: createError } = await supabase.storage.createBucket(bucketName, {
+          public: true,
+          fileSizeLimit: 5242880,
+          allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'],
+        });
+        if (createError) console.error('UPLOAD: Bucket creation warning', createError);
+      }
+    } catch (bucketErr) {
+      console.error('UPLOAD: Bucket check failed', bucketErr);
+      // Continue anyway, maybe it exists
+    }
+
+    const timestamp = Date.now();
+    const safeName = (fileObject.name || 'unnamed').replace(/[^a-zA-Z0-9.-]/g, '_');
+    const fileName = `${type}/${timestamp}-${safeName}`;
+
+    console.log('UPLOAD: Uploading to', fileName);
+
+    // Convert to ArrayBuffer to ensure compatibility
+    const fileBuffer = await fileObject.arrayBuffer();
+
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .upload(fileName, fileBuffer, {
+        contentType: fileObject.type || 'application/octet-stream',
+        upsert: true
+      });
+
+    if (error) {
+      console.error('UPLOAD: Supabase storage error', error);
+      throw error;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from(bucketName)
+      .getPublicUrl(fileName);
+
+    console.log('UPLOAD: Success, url:', publicUrl);
+
+    return c.json({
+      success: true,
+      data: { url: publicUrl }
+    });
+  } catch (error) {
+    console.error('UPLOAD: Fatal error', error);
+    return c.json({
+      success: false,
+      error: 'Failed to upload image: ' + (error instanceof Error ? error.message : String(error))
+    }, 500);
+  }
+});
+
 // ============ AREAS ENDPOINTS ============
 
 // Get all areas
@@ -925,7 +1026,7 @@ app.post('/make-server-f99e977c/areas', async (c) => {
       id,
       ...areaData,
     };
-    
+
     await kv.set(`area:${id}`, area);
     return c.json({ success: true, data: area });
   } catch (error) {
@@ -940,11 +1041,11 @@ app.put('/make-server-f99e977c/areas/:id', async (c) => {
     const id = c.req.param('id');
     const updates = await c.req.json();
     const existing = await kv.get(`area:${id}`);
-    
+
     if (!existing) {
       return c.json({ success: false, error: 'Area not found' }, 404);
     }
-    
+
     const updated = { ...existing, ...updates };
     await kv.set(`area:${id}`, updated);
     return c.json({ success: true, data: updated });
@@ -984,13 +1085,13 @@ app.put('/make-server-f99e977c/about', async (c) => {
   try {
     const updates = await c.req.json();
     const existing = await kv.get('about:info');
-    
+
     const updated = {
       id: 'info',
       ...(existing || {}),
       ...updates,
     };
-    
+
     await kv.set('about:info', updated);
     return c.json({ success: true, data: updated });
   } catch (error) {
@@ -1022,7 +1123,7 @@ app.post('/make-server-f99e977c/training-materials', async (c) => {
       ...materialData,
       createdAt: new Date().toISOString(),
     };
-    
+
     await kv.set(`training-material:${id}`, material);
     return c.json({ success: true, data: material });
   } catch (error) {
@@ -1037,11 +1138,11 @@ app.put('/make-server-f99e977c/training-materials/:id', async (c) => {
     const id = c.req.param('id');
     const updates = await c.req.json();
     const existing = await kv.get(`training-material:${id}`);
-    
+
     if (!existing) {
       return c.json({ success: false, error: 'Training material not found' }, 404);
     }
-    
+
     const updated = { ...existing, ...updates };
     await kv.set(`training-material:${id}`, updated);
     return c.json({ success: true, data: updated });
@@ -1056,21 +1157,21 @@ app.delete('/make-server-f99e977c/training-materials/:id', async (c) => {
   try {
     const id = c.req.param('id');
     const existing = await kv.get(`training-material:${id}`);
-    
+
     if (!existing) {
       return c.json({ success: false, error: 'Training material not found' }, 404);
     }
-    
+
     // Delete the material
     await kv.del(`training-material:${id}`);
-    
+
     // Delete all progress records associated with this material
     const allProgress = await kv.getByPrefix('material-progress:');
     const materialProgress = allProgress.filter((p: any) => p.materialId === id);
     for (const progress of materialProgress) {
       await kv.del(`material-progress:${progress.volunteerId}:${id}`);
     }
-    
+
     return c.json({ success: true });
   } catch (error) {
     console.error('Error deleting training material:', error);
@@ -1108,17 +1209,17 @@ app.post('/make-server-f99e977c/material-progress', async (c) => {
   try {
     const progressData = await c.req.json();
     const { volunteerId, materialId, userId, progress, viewed } = progressData;
-    
+
     // Use either volunteerId or userId
     const id = volunteerId || userId;
-    
+
     if (!id || !materialId) {
       return c.json({ success: false, error: 'volunteerId/userId and materialId are required' }, 400);
     }
-    
+
     const key = `material-progress:${id}:${materialId}`;
     const existing = await kv.get(key);
-    
+
     const progressRecord = {
       id: existing?.id || `${id}-${materialId}`,
       volunteerId: id,
@@ -1131,7 +1232,7 @@ app.post('/make-server-f99e977c/material-progress', async (c) => {
       lastUpdated: new Date().toISOString(),
       createdAt: existing?.createdAt || new Date().toISOString(),
     };
-    
+
     await kv.set(key, progressRecord);
     return c.json({ success: true, data: progressRecord });
   } catch (error) {
@@ -1145,17 +1246,17 @@ app.put('/make-server-f99e977c/material-progress/:id', async (c) => {
   try {
     const id = c.req.param('id');
     const updates = await c.req.json();
-    
+
     // ID format is "volunteerId-materialId"
     const [volunteerId, materialId] = id.split('-');
-    
+
     if (!volunteerId || !materialId) {
       return c.json({ success: false, error: 'Invalid progress ID format' }, 400);
     }
-    
+
     const key = `material-progress:${volunteerId}:${materialId}`;
     const existing = await kv.get(key);
-    
+
     const progressRecord = {
       id,
       volunteerId,
@@ -1165,7 +1266,7 @@ app.put('/make-server-f99e977c/material-progress/:id', async (c) => {
       ...updates,
       lastUpdated: new Date().toISOString(),
     };
-    
+
     await kv.set(key, progressRecord);
     return c.json({ success: true, data: progressRecord });
   } catch (error) {
@@ -1180,10 +1281,10 @@ app.put('/make-server-f99e977c/material-progress/:volunteerId/:materialId', asyn
     const volunteerId = c.req.param('volunteerId');
     const materialId = c.req.param('materialId');
     const updates = await c.req.json();
-    
+
     const key = `material-progress:${volunteerId}:${materialId}`;
     const existing = await kv.get(key);
-    
+
     const progressRecord = {
       id: `${volunteerId}-${materialId}`,
       volunteerId,
@@ -1193,7 +1294,7 @@ app.put('/make-server-f99e977c/material-progress/:volunteerId/:materialId', asyn
       ...updates,
       lastUpdated: new Date().toISOString(),
     };
-    
+
     await kv.set(key, progressRecord);
     return c.json({ success: true, data: progressRecord });
   } catch (error) {

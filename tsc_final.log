@@ -1,0 +1,2 @@
+src/components/LoginPage.tsx(40,20): error TS2741: Property 'isLoading' is missing in type '{ message: string; subtitle: string; }' but required in type 'LoadingOverlayProps'.
+src/components/RegisterPage.tsx(87,20): error TS2741: Property 'isLoading' is missing in type '{ message: string; subtitle: string; }' but required in type 'LoadingOverlayProps'.

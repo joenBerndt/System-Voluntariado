@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { User, Mail, Phone, MapPin, Camera, Lock, Save, X, Edit2, CheckCircle, Award, Briefcase, Shield, Crown, Eye, EyeOff } from 'lucide-react';
 import { projectId, publicAnonKey } from '../utils/supabase/info.tsx';
 
@@ -15,7 +15,7 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   // Form state
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -26,13 +26,25 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
   const [confirmPassword, setConfirmPassword] = useState('');
   const [photoUrl, setPhotoUrl] = useState(user?.photoUrl || '');
 
+  // Update state when user prop changes
+  useEffect(() => {
+    if (user) {
+      setName(user.name || '');
+      setEmail(user.email || '');
+      setPhone(user.phone || '');
+      setArea(user.area || '');
+      setSkills(user.skills || '');
+      setPhotoUrl(user.photoUrl || '');
+    }
+  }, [user]);
+
   const API_URL = `https://${projectId}.supabase.co/functions/v1/make-server-f99e977c`;
 
   // Calculate statistics
   const stats = useMemo(() => {
     const myApplications = applicationsData.filter(app => app.userEmail === user.email);
-    const myInterviews = myApplications.filter(app => 
-      app.status === 'interview_pending' || 
+    const myInterviews = myApplications.filter(app =>
+      app.status === 'interview_pending' ||
       app.status === 'interview_confirmed' ||
       (app.interviewDate && app.interviewDate !== '')
     );
@@ -193,7 +205,7 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
         if (password) {
           localStorage.setItem(`user_pass_${email.trim()}`, password);
         }
-        
+
         onUpdate(result.data);
         setEditing(false);
         setPassword('');
@@ -236,8 +248,8 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-gray-900 mb-2">Mi Perfil</h2>
-          <p className="text-gray-600">Gestiona tu información personal</p>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Mi Perfil</h2>
+          <p className="text-gray-500 mt-1">Gestiona tu información personal</p>
         </div>
         {!editing && (
           <button
@@ -253,9 +265,9 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
       {/* Profile Card */}
       <div className="bg-white rounded-2xl shadow-2xl border-2 border-gray-100 overflow-hidden">
         {/* Gradient Header */}
-        <div className={`relative h-48 bg-gradient-to-r ${roleInfo.bgGradient} overflow-hidden`}>
+        <div className={`relative h-48 bg-gradient-to-r ${roleInfo.bgGradient}`}>
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzBoLTEydjEyaDEyVjMwem0wLTEyaC0xMnYxMmgxMlYxOHoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-20"></div>
-          
+
           {/* Role Badge */}
           <div className="absolute top-6 right-6">
             <div className={`flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border-2 border-white/30`}>
@@ -269,9 +281,9 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
             <div className="relative group">
               <div className="w-40 h-40 rounded-3xl border-4 border-white shadow-2xl overflow-hidden bg-gradient-to-br from-emerald-400 to-teal-600">
                 {photoUrl ? (
-                  <img 
-                    src={photoUrl} 
-                    alt={name} 
+                  <img
+                    src={photoUrl}
+                    alt={name}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -282,7 +294,7 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
                   </div>
                 )}
               </div>
-              
+
               {editing && (
                 <label className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-3xl cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
                   <div className="text-center">
@@ -346,7 +358,7 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
                 <User className="w-5 h-5 text-emerald-600" />
                 Información Personal
               </h4>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Name */}
                 <div>
@@ -472,7 +484,7 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
                   <Lock className="w-5 h-5 text-amber-600" />
                   Cambiar Contraseña (Opcional)
                 </h4>
-                
+
                 <div className="space-y-4">
                   <div>
                     <label className="block text-gray-700 font-semibold mb-2">

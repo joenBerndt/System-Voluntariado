@@ -1,0 +1,2 @@
+src/components/volunteer/VolunteerIntranet.tsx(242,26): error TS17008: JSX element 'span' has no corresponding closing tag.
+src/components/volunteer/VolunteerIntranet.tsx(246,24): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?

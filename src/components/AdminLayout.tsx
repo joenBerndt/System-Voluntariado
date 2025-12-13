@@ -11,7 +11,7 @@ import { ApplicationsAdmin } from './admin/ApplicationsAdmin';
 import { ContentManagement } from './ContentManagement';
 import { UsersAdmin } from './admin/UsersAdmin';
 import { ActivityLog } from './admin/ActivityLog';
-import logoIIAP from 'figma:asset/30559607b1a3dc361e3c8d4f3f9460064ad9a131.png';
+import logoIIAP from '../assets/30559607b1a3dc361e3c8d4f3f9460064ad9a131.png';
 
 interface AdminLayoutProps {
   onLogout: () => void;
@@ -25,7 +25,7 @@ type Section = 'dashboard' | 'users' | 'volunteers' | 'convocatorias' | 'applica
 export function AdminLayout({ onLogout, currentUser, onUserUpdate, onBackToLanding }: AdminLayoutProps) {
   const [currentSection, setCurrentSection] = useState<Section>('dashboard');
   const [user, setUser] = useState(currentUser);
-  
+
   const isAdmin = currentUser?.role === 'admin';
   const isAdminMaster = currentUser?.role === 'admin_master';
 
@@ -52,14 +52,14 @@ export function AdminLayout({ onLogout, currentUser, onUserUpdate, onBackToLandi
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+    <div className="min-h-screen bg-gray-50 text-left">
+      {/* Header - Sticky */}
       <header className="bg-white border-b-2 border-emerald-100 px-8 py-4 shadow-md">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <img src={logoIIAP} alt="IIAP Logo" className="h-14 w-auto" />
             <div className="border-l-2 border-emerald-600 pl-4">
-              <h1 className="text-gray-900">Panel de Administración - IIAP</h1>
+              <h1 className="text-gray-900 leading-tight">Panel de Administración</h1>
               <p className="text-gray-600 text-sm">Sistema de Gestión de Voluntariado</p>
             </div>
           </div>
@@ -73,11 +73,11 @@ export function AdminLayout({ onLogout, currentUser, onUserUpdate, onBackToLandi
                 <span>Volver al Landing</span>
               </button>
             )}
-            <div className="text-right border-r-2 border-gray-200 pr-4">
+            <div className="text-right border-r-2 border-gray-200 pr-4 hidden sm:block">
               <p className="text-gray-900 font-semibold">{currentUser?.name}</p>
               <p className="text-gray-600 text-sm">
-                {currentUser?.role === 'admin_master' ? 'Admin Master' : 
-                 currentUser?.role === 'admin' ? 'Administrador' : 'Usuario'}
+                {currentUser?.role === 'admin_master' ? 'Admin Master' :
+                  currentUser?.role === 'admin' ? 'Administrador' : 'Usuario'}
               </p>
             </div>
             <button
@@ -93,7 +93,7 @@ export function AdminLayout({ onLogout, currentUser, onUserUpdate, onBackToLandi
 
       <div className="flex">
         {/* Sidebar */}
-        <aside className="w-64 bg-white border-r-2 border-emerald-100 min-h-[calc(100vh-73px)] shadow-sm">
+        <aside className="w-64 bg-white border-r-2 border-emerald-100 min-h-[calc(100vh-90px)] shadow-sm">
           <nav className="p-4 space-y-2">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -104,11 +104,10 @@ export function AdminLayout({ onLogout, currentUser, onUserUpdate, onBackToLandi
                   <button
                     key={item.id}
                     onClick={() => setCurrentSection(item.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
-                      currentSection === item.id
-                        ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg'
-                        : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
-                    }`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${currentSection === item.id
+                      ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg'
+                      : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
+                      }`}
                   >
                     <Icon className="w-5 h-5" />
                     <span>{item.label}</span>
@@ -122,11 +121,11 @@ export function AdminLayout({ onLogout, currentUser, onUserUpdate, onBackToLandi
 
         {/* Main Content */}
         <main className="flex-1 p-8">
-          {currentSection === 'dashboard' && <Dashboard currentUser={currentUser} />}
-          {currentSection === 'applications' && <ApplicationsAdmin isAdminJunior={isAdmin} />}
-          {currentSection === 'volunteers' && <Volunteers isAdminJunior={isAdmin} />}
+          {currentSection === 'dashboard' && <Dashboard currentUser={currentUser} onNavigate={setCurrentSection} />}
+          {currentSection === 'applications' && <ApplicationsAdmin currentUser={currentUser} />}
+          {currentSection === 'volunteers' && <Volunteers currentUser={currentUser} />}
           {currentSection === 'projects' && <ProjectsAdmin />}
-          {currentSection === 'convocatorias' && <Convocatorias />}
+          {currentSection === 'convocatorias' && <Convocatorias currentUser={currentUser} />}
           {currentSection === 'areas' && <AreasAdmin />}
           {currentSection === 'about' && <AboutAdmin />}
           {currentSection === 'users' && <UsersAdmin currentUser={currentUser} />}

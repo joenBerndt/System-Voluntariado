@@ -3,9 +3,10 @@ import { useApi } from '../hooks/useApi';
 
 interface DashboardProps {
   currentUser?: any;
+  onNavigate: (section: any) => void;
 }
 
-export function Dashboard({ currentUser }: DashboardProps) {
+export function Dashboard({ currentUser, onNavigate }: DashboardProps) {
   const { data: volunteersData, loading: loadingVolunteers } = useApi<any[]>('/volunteers');
   const { data: convocatoriasData, loading: loadingConvocatorias } = useApi<any[]>('/convocatorias');
   const { data: usersData, loading: loadingUsers } = useApi<any[]>('/users');
@@ -36,7 +37,7 @@ export function Dashboard({ currentUser }: DashboardProps) {
   const pendingApplications = applications.filter(a => a.status === 'pending').length;
   const interviewPendingApplications = applications.filter(a => a.status === 'interview_pending').length;
   const interviewConfirmedApplications = applications.filter(a => a.status === 'interview_confirmed').length;
-  
+
   // Active convocatorias
   const activeConvocatorias = convocatorias.filter(c => c.status === 'activa').length;
 
@@ -47,56 +48,64 @@ export function Dashboard({ currentUser }: DashboardProps) {
       value: totalUsers,
       icon: Users,
       color: 'from-gray-600 to-gray-700',
-      description: 'Todos los usuarios del sistema'
+      description: 'Todos los usuarios del sistema',
+      action: 'users'
     },
     {
       label: 'Usuarios Registrados',
       value: regularUsers.length,
       icon: UserCircle,
       color: 'from-blue-600 to-blue-700',
-      description: 'Pueden postular a convocatorias'
+      description: 'Pueden postular a convocatorias',
+      action: 'users'
     },
     {
       label: 'Voluntarios Activos',
       value: volunteerUsers.length,
       icon: UserCheck,
       color: 'from-emerald-600 to-emerald-700',
-      description: 'Postulantes aceptados'
+      description: 'Postulantes aceptados',
+      action: 'volunteers'
     },
     {
       label: 'Postulaciones Pendientes',
       value: pendingApplications,
       icon: FileText,
       color: 'from-amber-600 to-amber-700',
-      description: 'Esperando revisión'
+      description: 'Esperando revisión',
+      action: 'applications'
     },
     {
       label: 'Entrevistas Pendientes',
       value: interviewPendingApplications,
       icon: Calendar,
       color: 'from-orange-600 to-orange-700',
-      description: 'Entrevistas programadas'
+      description: 'Entrevistas programadas',
+      action: 'applications'
     },
     {
       label: 'Convocatorias Activas',
       value: activeConvocatorias,
       icon: Megaphone,
       color: 'from-teal-600 to-teal-700',
-      description: 'Abiertas para postular'
+      description: 'Abiertas para postular',
+      action: 'convocatorias'
     },
     {
       label: 'Proyectos Totales',
       value: projects.length,
       icon: FolderOpen,
       color: 'from-indigo-600 to-indigo-700',
-      description: 'Proyectos registrados'
+      description: 'Proyectos registrados',
+      action: 'projects'
     },
     {
       label: 'Áreas Totales',
       value: areas.length,
       icon: Briefcase,
       color: 'from-purple-600 to-purple-700',
-      description: 'Áreas de trabajo'
+      description: 'Áreas de trabajo',
+      action: 'areas'
     },
   ];
 
@@ -107,28 +116,32 @@ export function Dashboard({ currentUser }: DashboardProps) {
       value: pendingApplications,
       icon: FileText,
       color: 'from-amber-600 to-amber-700',
-      description: 'Esperando revisión'
+      description: 'Esperando revisión',
+      action: 'applications'
     },
     {
       label: 'Voluntarios Activos',
       value: volunteerUsers.length,
       icon: UserCheck,
       color: 'from-emerald-600 to-emerald-700',
-      description: 'Postulantes aceptados'
+      description: 'Postulantes aceptados',
+      action: 'volunteers'
     },
     {
       label: 'Entrevistas Pendientes',
       value: interviewPendingApplications,
       icon: Calendar,
       color: 'from-orange-600 to-orange-700',
-      description: 'Entrevistas programadas'
+      description: 'Entrevistas programadas',
+      action: 'applications'
     },
     {
       label: 'Convocatorias Activas',
       value: activeConvocatorias,
       icon: Megaphone,
       color: 'from-teal-600 to-teal-700',
-      description: 'Abiertas para postular'
+      description: 'Abiertas para postular',
+      action: 'convocatorias'
     },
   ];
 
@@ -148,8 +161,8 @@ export function Dashboard({ currentUser }: DashboardProps) {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-gray-900 mb-2">Panel de Control</h2>
-        <p className="text-gray-600">Vista general del sistema de voluntariado</p>
+        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Panel de Control</h2>
+        <p className="text-gray-500 mt-1">Vista general del sistema de voluntariado</p>
       </div>
 
       {/* Stats Grid */}
@@ -157,16 +170,20 @@ export function Dashboard({ currentUser }: DashboardProps) {
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div key={stat.label} className="bg-white p-6 rounded-xl border-2 border-gray-100 hover:border-emerald-300 transition-all shadow-lg hover:shadow-xl">
+            <button
+              key={stat.label}
+              onClick={() => onNavigate(stat.action)}
+              className="bg-white p-6 rounded-xl border-2 border-gray-100 hover:border-emerald-300 transition-all shadow-lg hover:shadow-xl text-left w-full group"
+            >
               <div className="flex items-center justify-between mb-4">
-                <div className={`bg-gradient-to-br ${stat.color} p-3 rounded-lg shadow-md`}>
+                <div className={`bg-gradient-to-br ${stat.color} p-3 rounded-lg shadow-md group-hover:scale-110 transition-transform`}>
                   <Icon className="w-6 h-6 text-white" />
                 </div>
                 <span className="text-gray-900 text-3xl font-bold">{stat.value}</span>
               </div>
               <p className="text-gray-900 mb-1 font-semibold">{stat.label}</p>
               <p className="text-gray-600 text-sm">{stat.description}</p>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -203,13 +220,12 @@ export function Dashboard({ currentUser }: DashboardProps) {
                     <p className="text-gray-500 text-sm">{conv.area}</p>
                   </div>
                   <span
-                    className={`px-3 py-1 rounded-full text-sm ${
-                      conv.status === 'activa'
-                        ? 'bg-green-100 text-green-700'
-                        : conv.status === 'cerrada'
+                    className={`px-3 py-1 rounded-full text-sm ${conv.status === 'activa'
+                      ? 'bg-green-100 text-green-700'
+                      : conv.status === 'cerrada'
                         ? 'bg-gray-100 text-gray-700'
                         : 'bg-orange-100 text-orange-700'
-                    }`}
+                      }`}
                   >
                     {conv.status === 'activa' ? 'Activa' : conv.status === 'cerrada' ? 'Cerrada' : 'En Proceso'}
                   </span>
@@ -229,9 +245,8 @@ export function Dashboard({ currentUser }: DashboardProps) {
               recentUsers.map((user) => (
                 <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      user.role === 'volunteer' ? 'bg-green-100' : 'bg-blue-100'
-                    }`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${user.role === 'volunteer' ? 'bg-green-100' : 'bg-blue-100'
+                      }`}>
                       <span className={user.role === 'volunteer' ? 'text-green-600' : 'text-blue-600'}>
                         {user.name.charAt(0)}
                       </span>
@@ -242,11 +257,10 @@ export function Dashboard({ currentUser }: DashboardProps) {
                     </div>
                   </div>
                   <span
-                    className={`px-3 py-1 rounded-full text-sm ${
-                      user.role === 'volunteer'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-blue-100 text-blue-700'
-                    }`}
+                    className={`px-3 py-1 rounded-full text-sm ${user.role === 'volunteer'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-blue-100 text-blue-700'
+                      }`}
                   >
                     {user.role === 'volunteer' ? 'Voluntario' : 'Usuario'}
                   </span>

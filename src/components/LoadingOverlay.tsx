@@ -1,19 +1,19 @@
 import { Loader2 } from 'lucide-react';
 
 interface LoadingOverlayProps {
-  isLoading: boolean;
+  isLoading?: boolean;
   message?: string;
+  subtitle?: string;
   fullScreen?: boolean;
 }
 
-export function LoadingOverlay({ isLoading, message = 'Cargando...', fullScreen = false }: LoadingOverlayProps) {
+export function LoadingOverlay({ isLoading = true, message = 'Cargando...', subtitle = 'Por favor espera un momento...', fullScreen = false }: LoadingOverlayProps) {
   if (!isLoading) return null;
 
   return (
-    <div 
-      className={`${
-        fullScreen ? 'fixed inset-0' : 'absolute inset-0'
-      } bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-fade-in`}
+    <div
+      className={`${fullScreen ? 'fixed inset-0' : 'absolute inset-0'
+        } bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-fade-in`}
     >
       <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-8 rounded-2xl shadow-2xl border-2 border-emerald-200 animate-scale-in">
         <div className="flex flex-col items-center gap-4">
@@ -28,7 +28,7 @@ export function LoadingOverlay({ isLoading, message = 'Cargando...', fullScreen 
           {/* Message */}
           <div className="text-center">
             <p className="text-gray-900 font-semibold text-lg mb-1">{message}</p>
-            <p className="text-gray-600 text-sm">Por favor espera un momento...</p>
+            <p className="text-gray-600 text-sm">{subtitle}</p>
           </div>
 
           {/* Progress dots */}
