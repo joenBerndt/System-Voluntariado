@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   Activity, Filter, Search, UserPlus, FileText, Key, BookOpen, Layers,
-  Clock, CheckCircle, Briefcase, MapPin, ChevronLeft, ChevronRight, Calendar, Users
+  Clock, CheckCircle, Briefcase, MapPin, ChevronLeft, ChevronRight, Calendar, Users, Printer
 } from 'lucide-react';
 import { useApi } from '../../hooks/useApi';
 
@@ -18,6 +18,9 @@ export function ActivityLog() {
   const logs = logsData || [];
 
   const getIconAndColor = (type: string, action: string) => {
+    if (action === 'Descarga PDF') {
+      return { icon: Printer, color: 'text-slate-700', bg: 'bg-slate-100', border: 'border-slate-200' };
+    }
     switch (type) {
       case 'user':
       case 'volunteer':

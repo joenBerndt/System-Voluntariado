@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, UserCircle, Megaphone, FolderOpen, MapPin, Info, User, FileText, UserCheck, LogOut, Home, Video, Activity } from 'lucide-react';
+import { LayoutDashboard, Users, UserCircle, Megaphone, FolderOpen, MapPin, Info, User, FileText, UserCheck, LogOut, Home, Video, Activity, BarChart2 } from 'lucide-react';
 import { useState } from 'react';
 import { Dashboard } from './Dashboard';
 import { Volunteers } from './Volunteers';
@@ -11,6 +11,7 @@ import { ApplicationsAdmin } from './admin/ApplicationsAdmin';
 import { ContentManagement } from './ContentManagement';
 import { UsersAdmin } from './admin/UsersAdmin';
 import { ActivityLog } from './admin/ActivityLog';
+import { ReportsAdmin } from './admin/ReportsAdmin';
 import logoIIAP from '../assets/30559607b1a3dc361e3c8d4f3f9460064ad9a131.png';
 
 interface AdminLayoutProps {
@@ -20,7 +21,7 @@ interface AdminLayoutProps {
   onBackToLanding?: () => void;
 }
 
-type Section = 'dashboard' | 'users' | 'volunteers' | 'convocatorias' | 'applications' | 'projects' | 'areas' | 'about' | 'profile' | 'content' | 'activity';
+type Section = 'dashboard' | 'users' | 'volunteers' | 'convocatorias' | 'applications' | 'projects' | 'areas' | 'about' | 'profile' | 'content' | 'activity' | 'reports';
 
 export function AdminLayout({ onLogout, currentUser, onUserUpdate, onBackToLanding }: AdminLayoutProps) {
   const [currentSection, setCurrentSection] = useState<Section>('dashboard');
@@ -39,6 +40,7 @@ export function AdminLayout({ onLogout, currentUser, onUserUpdate, onBackToLandi
   // Menu items filtered based on role
   const menuItems = [
     { id: 'dashboard' as Section, label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'reports' as Section, label: 'Reportes', icon: BarChart2, masterOnly: true },
     { id: 'applications' as Section, label: 'Postulaciones', icon: FileText, adminOnly: false },
     { id: 'volunteers' as Section, label: 'Voluntarios', icon: UserCheck, adminOnly: false },
     { id: 'convocatorias' as Section, label: 'Convocatorias', icon: Megaphone, masterOnly: true },
@@ -122,6 +124,7 @@ export function AdminLayout({ onLogout, currentUser, onUserUpdate, onBackToLandi
         {/* Main Content */}
         <main className="flex-1 p-8">
           {currentSection === 'dashboard' && <Dashboard currentUser={currentUser} onNavigate={setCurrentSection} />}
+          {currentSection === 'reports' && <ReportsAdmin currentUser={currentUser} />}
           {currentSection === 'applications' && <ApplicationsAdmin currentUser={currentUser} />}
           {currentSection === 'volunteers' && <Volunteers currentUser={currentUser} />}
           {currentSection === 'projects' && <ProjectsAdmin />}
