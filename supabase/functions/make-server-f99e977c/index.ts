@@ -1,6 +1,7 @@
 /// <reference lib="deno.ns" />
 // @deno-types="npm:@types/hono"
-import { Hono } from 'npm:hono';
+// @ts-nocheck
+import { Hono, type Context } from 'npm:hono';
 import { cors } from 'npm:hono/cors';
 import { logger } from 'npm:hono/logger';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
@@ -10,6 +11,7 @@ const app = new Hono();
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
+declare const Deno: any;
 
 app.use('*', cors());
 app.use('*', logger(console.log));
@@ -71,12 +73,12 @@ const logActivity = async (
 };
 
 // Health check
-app.get('/make-server-f99e977c/health', (c) => {
+app.get('/make-server-f99e977c/health', (c: Context) => {
   return c.json({ status: 'ok' });
 });
 
 // ============ ACTIVITY LOGS ENDPOINT ============
-app.get('/make-server-f99e977c/activity-logs', async (c) => {
+app.get('/make-server-f99e977c/activity-logs', async (c: Context) => {
   try {
     const { data, error } = await supabase
       .from('activity_logs')
@@ -95,7 +97,7 @@ app.get('/make-server-f99e977c/activity-logs', async (c) => {
 });
 
 // Create activity log (manual from frontend)
-app.post('/make-server-f99e977c/activity-logs', async (c) => {
+app.post('/make-server-f99e977c/activity-logs', async (c: Context) => {
   try {
     const logData = await c.req.json();
 
@@ -139,18 +141,85 @@ app.post('/make-server-f99e977c/activity-logs', async (c) => {
     return c.json({ success: true });
   } catch (error) {
     console.log('Error creating activity log:', error);
-    return c.json({ success: false, error: 'Failed to create activity log' }, 500);
+    return c.json({ success: false, error: 'Failed to create activity log: ' + (error.message || error) }, 500);
+  }
+});
+
+// Upload profile photo
+app.post('/make-server-f99e977c/profile/upload-photo', async (c: Context) => {
+  try {
+    const body = await c.req.parseBody();
+    const file = body['photo'];
+    const userId = body['userId'];
+
+    if (!file || !userId) {
+      return c.json({ success: false, error: 'Missing file or userId' }, 400);
+    }
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}-${Date.now()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, {
+        upsert: true,
+        contentType: file.type,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(filePath);
+
+    // Update user with new photo url
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ photo_url: publicUrl })
+      .eq('id', userId);
+
+    if (updateError) throw updateError;
+
+    return c.json({ success: true, data: { url: publicUrl } });
+  } catch (error) {
+    console.log('Error uploading photo:', error);
+    return c.json({ success: false, error: 'Failed to upload photo: ' + (error.message || error) }, 500);
   }
 });
 
 // ============ AUTH ENDPOINTS ============
 
 // Login endpoint
-app.post('/make-server-f99e977c/login', async (c) => {
+// Login endpoint
+app.post('/make-server-f99e977c/login', async (c: Context) => {
   try {
     const { email, password } = await c.req.json();
 
-    // 1. Check for hardcoded admin
+    // 1. Check DB user FIRST
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') throw error;
+
+    if (user) {
+      // Verify password (simple comparison for now)
+      if (user.password !== password) {
+        await logActivity('Intento de Acceso Fallido', 'auth', null, `Intento fallido para: ${email}`, null, null, 'Desconocido', email);
+        return c.json({ success: false, error: 'Contraseña incorrecta' }, 401);
+      }
+
+      await logActivity('Inicio de Sesión', 'auth', user.id, `${user.name} inició sesión`, null, user.id, user.name, user.email);
+
+      // Return user without password
+      const { password: _, ...userWithoutPass } = user;
+      return c.json({ success: true, data: toCamelCase(userWithoutPass) });
+    }
+
+    // 2. Check for hardcoded admin if not in DB
     if (email === 'admin@iiap.org' && password === 'admin123') {
       const adminData = {
         id: 'admin-master-001',
@@ -169,29 +238,7 @@ app.post('/make-server-f99e977c/login', async (c) => {
       });
     }
 
-    // 2. Check DB user
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!user) {
-      return c.json({ success: false, error: 'Usuario no encontrado' }, 404);
-    }
-
-    // 3. Verify password (simple comparison for now, should use bcrypt in prod)
-    if (user.password !== password) {
-      await logActivity('Intento de Acceso Fallido', 'auth', null, `Intento fallido para: ${email}`, null, null, 'Desconocido', email);
-      return c.json({ success: false, error: 'Contraseña incorrecta' }, 401);
-    }
-
-    await logActivity('Inicio de Sesión', 'auth', user.id, `${user.name} inició sesión`, null, user.id, user.name, user.email);
-
-    // Return user without password
-    const { password: _, ...userWithoutPass } = user;
-    return c.json({ success: true, data: toCamelCase(userWithoutPass) });
+    return c.json({ success: false, error: 'Usuario no encontrado' }, 404);
 
   } catch (error) {
     console.log('Error logging in:', error);
@@ -200,7 +247,7 @@ app.post('/make-server-f99e977c/login', async (c) => {
 });
 
 // Register endpoint
-app.post('/make-server-f99e977c/register', async (c) => {
+app.post('/make-server-f99e977c/register', async (c: Context) => {
   try {
     const userData = await c.req.json();
 
@@ -244,7 +291,7 @@ app.post('/make-server-f99e977c/register', async (c) => {
 // ============ VOLUNTEERS ENDPOINTS ============
 
 // Get all volunteers
-app.get('/make-server-f99e977c/volunteers', async (c) => {
+app.get('/make-server-f99e977c/volunteers', async (c: Context) => {
   try {
     const { data, error } = await supabase
       .from('users')
@@ -260,7 +307,7 @@ app.get('/make-server-f99e977c/volunteers', async (c) => {
 });
 
 // Create volunteer (admin)
-app.post('/make-server-f99e977c/volunteers', async (c) => {
+app.post('/make-server-f99e977c/volunteers', async (c: Context) => {
   try {
     const volunteerData = await c.req.json();
 
@@ -290,7 +337,7 @@ app.post('/make-server-f99e977c/volunteers', async (c) => {
 });
 
 // Update volunteer
-app.put('/make-server-f99e977c/volunteers/:id', async (c) => {
+app.put('/make-server-f99e977c/volunteers/:id', async (c: Context) => {
   try {
     const id = c.req.param('id');
     const updates = await c.req.json();
@@ -316,7 +363,7 @@ app.put('/make-server-f99e977c/volunteers/:id', async (c) => {
 });
 
 // Delete volunteer
-app.delete('/make-server-f99e977c/volunteers/:id', async (c) => {
+app.delete('/make-server-f99e977c/volunteers/:id', async (c: Context) => {
   try {
     const id = c.req.param('id');
 
@@ -339,7 +386,7 @@ app.delete('/make-server-f99e977c/volunteers/:id', async (c) => {
 // ============ USERS ENDPOINTS ============
 
 // Get all users
-app.get('/make-server-f99e977c/users', async (c) => {
+app.get('/make-server-f99e977c/users', async (c: Context) => {
   try {
     const { data, error } = await supabase.from('users').select('*');
     if (error) throw error;
@@ -351,7 +398,7 @@ app.get('/make-server-f99e977c/users', async (c) => {
 });
 
 // Create user (legacy/admin)
-app.post('/make-server-f99e977c/users', async (c) => {
+app.post('/make-server-f99e977c/users', async (c: Context) => {
   try {
     const userData = await c.req.json();
     const dbData = toSnakeCase({
@@ -378,7 +425,7 @@ app.post('/make-server-f99e977c/users', async (c) => {
 });
 
 // Get user by email
-app.get('/make-server-f99e977c/users/by-email/:email', async (c) => {
+app.get('/make-server-f99e977c/users/by-email/:email', async (c: Context) => {
   try {
     const email = c.req.param('email');
     const { data, error } = await supabase
@@ -396,13 +443,13 @@ app.get('/make-server-f99e977c/users/by-email/:email', async (c) => {
 });
 
 // Update user role
-app.put('/make-server-f99e977c/users/:id/role', async (c) => {
+app.put('/make-server-f99e977c/users/:id/role', async (c: Context) => {
   try {
     const id = c.req.param('id');
     const { role } = await c.req.json();
 
-    // Get user name before update
-    const { data: currentUser } = await supabase.from('users').select('name').eq('id', id).single();
+    // Get user info before update
+    const { data: currentUser } = await supabase.from('users').select('name, role').eq('id', id).single();
 
     const { data, error } = await supabase
       .from('users')
@@ -412,6 +459,31 @@ app.put('/make-server-f99e977c/users/:id/role', async (c) => {
       .single();
 
     if (error) throw error;
+
+    // If downgrading from volunteer/admin to user, clean up assignments and manager roles
+    if (role === 'user' && currentUser && (currentUser.role === 'volunteer' || currentUser.role === 'admin' || currentUser.role === 'admin_master')) {
+      console.log(`Cleaning up assignments for downgraded user ${id}`);
+
+      // 1. Delete from project_assignments
+      await supabase.from('project_assignments').delete().eq('volunteer_id', id);
+
+      // 2. Remove from project managers array
+      // First find projects managed by this user
+      const { data: managedProjects } = await supabase
+        .from('projects')
+        .select('id, managers')
+        .contains('managers', [id]);
+
+      if (managedProjects && managedProjects.length > 0) {
+        for (const project of managedProjects) {
+          const newManagers = (project.managers || []).filter((m: string) => m !== id);
+          await supabase
+            .from('projects')
+            .update({ managers: newManagers })
+            .eq('id', project.id);
+        }
+      }
+    }
 
     await logActivity('Cambio de Rol', 'user', id, `Rol de ${currentUser?.name || id} actualizado a ${role}`, { oldRole: currentUser?.role, newRole: role });
 
@@ -423,11 +495,44 @@ app.put('/make-server-f99e977c/users/:id/role', async (c) => {
 });
 
 // Update user (general)
-app.put('/make-server-f99e977c/users/:id', async (c) => {
+app.put('/make-server-f99e977c/users/:id', async (c: Context) => {
   try {
     const id = c.req.param('id');
     const userData = await c.req.json();
     const dbData = toSnakeCase(userData);
+
+    // Handle hardcoded admin migration: Create in DB if not exists
+    if (id === 'admin-master-001') {
+      const { data: existing } = await supabase.from('users').select('id').eq('id', id).maybeSingle();
+
+      if (!existing) {
+        // Create the admin record with defaults
+        const adminDefaults = {
+          id: 'admin-master-001',
+          name: 'Administrador Master',
+          email: 'admin@iiap.org',
+          role: 'admin_master',
+          phone: '+51 065 265515',
+          area: 'Administración General',
+          password: 'admin123',
+          status: 'activo',
+          registeredDate: new Date().toISOString().split('T')[0],
+        };
+
+        const fullData = { ...toSnakeCase(adminDefaults), ...dbData };
+
+        const { data, error } = await supabase
+          .from('users')
+          .insert(fullData)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        await logActivity('Actualización de Usuario', 'user', id, `Usuario Admin migrado/actualizado: ${data.name}`, userData);
+        return c.json({ success: true, data: toCamelCase(data) });
+      }
+    }
 
     const { data, error } = await supabase
       .from('users')
@@ -448,7 +553,7 @@ app.put('/make-server-f99e977c/users/:id', async (c) => {
 });
 
 // Delete user
-app.delete('/make-server-f99e977c/users/:id', async (c) => {
+app.delete('/make-server-f99e977c/users/:id', async (c: Context) => {
   try {
     const id = c.req.param('id');
 
@@ -470,7 +575,7 @@ app.delete('/make-server-f99e977c/users/:id', async (c) => {
 // ============ PROJECTS ENDPOINTS ============
 
 // Get all projects
-app.get('/make-server-f99e977c/projects', async (c) => {
+app.get('/make-server-f99e977c/projects', async (c: Context) => {
   try {
     const { data, error } = await supabase.from('projects').select('*');
     if (error) throw error;
@@ -482,7 +587,7 @@ app.get('/make-server-f99e977c/projects', async (c) => {
 });
 
 // Create project
-app.post('/make-server-f99e977c/projects', async (c) => {
+app.post('/make-server-f99e977c/projects', async (c: Context) => {
   try {
     const projectData = await c.req.json();
     const dbData = toSnakeCase({
@@ -509,7 +614,7 @@ app.post('/make-server-f99e977c/projects', async (c) => {
 });
 
 // Update project
-app.put('/make-server-f99e977c/projects/:id', async (c) => {
+app.put('/make-server-f99e977c/projects/:id', async (c: Context) => {
   try {
     const id = c.req.param('id');
     const updates = await c.req.json();
@@ -534,7 +639,7 @@ app.put('/make-server-f99e977c/projects/:id', async (c) => {
 });
 
 // Delete project
-app.delete('/make-server-f99e977c/projects/:id', async (c) => {
+app.delete('/make-server-f99e977c/projects/:id', async (c: Context) => {
   try {
     const id = c.req.param('id');
 
@@ -555,7 +660,7 @@ app.delete('/make-server-f99e977c/projects/:id', async (c) => {
 // ============ PROJECT ASSIGNMENTS ENDPOINTS ============
 
 // Get all assignments
-app.get('/make-server-f99e977c/project-assignments', async (c) => {
+app.get('/make-server-f99e977c/project-assignments', async (c: Context) => {
   try {
     const { data, error } = await supabase.from('project_assignments').select('*');
     if (error) throw error;
@@ -567,7 +672,7 @@ app.get('/make-server-f99e977c/project-assignments', async (c) => {
 });
 
 // Create assignment
-app.post('/make-server-f99e977c/project-assignments', async (c) => {
+app.post('/make-server-f99e977c/project-assignments', async (c: Context) => {
   try {
     const { projectId, volunteerId, convocatoriaId } = await c.req.json();
     const dbData = {
@@ -600,7 +705,7 @@ app.post('/make-server-f99e977c/project-assignments', async (c) => {
 });
 
 // Delete assignment
-app.delete('/make-server-f99e977c/project-assignments/:id', async (c) => {
+app.delete('/make-server-f99e977c/project-assignments/:id', async (c: Context) => {
   try {
     const id = c.req.param('id');
     const { error } = await supabase.from('project_assignments').delete().eq('id', id);
@@ -615,7 +720,7 @@ app.delete('/make-server-f99e977c/project-assignments/:id', async (c) => {
 // ============ CONVOCATORIAS ENDPOINTS ============
 
 // Get all convocatorias
-app.get('/make-server-f99e977c/convocatorias', async (c) => {
+app.get('/make-server-f99e977c/convocatorias', async (c: Context) => {
   try {
     const { data, error } = await supabase.from('convocatorias').select('*');
     if (error) throw error;
@@ -627,7 +732,7 @@ app.get('/make-server-f99e977c/convocatorias', async (c) => {
 });
 
 // Create convocatoria
-app.post('/make-server-f99e977c/convocatorias', async (c) => {
+app.post('/make-server-f99e977c/convocatorias', async (c: Context) => {
   try {
     const convocatoriaData = await c.req.json();
     const dbData = toSnakeCase({
@@ -655,7 +760,7 @@ app.post('/make-server-f99e977c/convocatorias', async (c) => {
 });
 
 // Update convocatoria
-app.put('/make-server-f99e977c/convocatorias/:id', async (c) => {
+app.put('/make-server-f99e977c/convocatorias/:id', async (c: Context) => {
   try {
     const id = c.req.param('id');
     const updates = await c.req.json();
@@ -680,7 +785,7 @@ app.put('/make-server-f99e977c/convocatorias/:id', async (c) => {
 });
 
 // Delete convocatoria
-app.delete('/make-server-f99e977c/convocatorias/:id', async (c) => {
+app.delete('/make-server-f99e977c/convocatorias/:id', async (c: Context) => {
   try {
     const id = c.req.param('id');
     const { data: conv } = await supabase.from('convocatorias').select('title').eq('id', id).single();
@@ -723,7 +828,7 @@ app.delete('/make-server-f99e977c/convocatorias/:id', async (c) => {
 // ============ APPLICATIONS ENDPOINTS ============
 
 // Get all applications
-app.get('/make-server-f99e977c/applications', async (c) => {
+app.get('/make-server-f99e977c/applications', async (c: Context) => {
   try {
     const { data, error } = await supabase.from('applications').select('*');
     if (error) throw error;
@@ -735,7 +840,7 @@ app.get('/make-server-f99e977c/applications', async (c) => {
 });
 
 // Delete single activity log
-app.delete('/make-server-f99e977c/activity-logs/:id', async (c) => {
+app.delete('/make-server-f99e977c/activity-logs/:id', async (c: Context) => {
   try {
     const id = c.req.param('id');
     const { error } = await supabase.from('activity_logs').delete().eq('id', id);
@@ -748,7 +853,7 @@ app.delete('/make-server-f99e977c/activity-logs/:id', async (c) => {
 });
 
 // Clear all activity logs
-app.delete('/make-server-f99e977c/activity-logs', async (c) => {
+app.delete('/make-server-f99e977c/activity-logs', async (c: Context) => {
   try {
     const { error } = await supabase.from('activity_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
     if (error) throw error;
@@ -760,7 +865,7 @@ app.delete('/make-server-f99e977c/activity-logs', async (c) => {
 });
 
 // Get applications for user
-app.get('/make-server-f99e977c/applications/user/:userEmail', async (c) => {
+app.get('/make-server-f99e977c/applications/user/:userEmail', async (c: Context) => {
   try {
     const email = c.req.param('userEmail');
     const { data, error } = await supabase
@@ -779,7 +884,7 @@ app.get('/make-server-f99e977c/applications/user/:userEmail', async (c) => {
 
 
 // Create application
-app.post('/make-server-f99e977c/applications', async (c) => {
+app.post('/make-server-f99e977c/applications', async (c: Context) => {
   try {
     const appData = await c.req.json();
     const dbData = toSnakeCase({

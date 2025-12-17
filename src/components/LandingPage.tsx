@@ -1,5 +1,6 @@
-import { Users, Calendar, MapPin, ArrowRight, LogIn, Heart, Target, Award, ChevronDown, Leaf, Globe, HandHeart, Mail, Phone, CheckCircle, Megaphone, FolderOpen, ChevronLeft, ChevronRight, X, Search } from 'lucide-react';
+import { Users, Calendar, MapPin, ArrowRight, LogIn, Heart, Target, Award, ChevronDown, Leaf, Globe, HandHeart, Mail, Phone, CheckCircle, Megaphone, FolderOpen, ChevronLeft, ChevronRight, X, Search, BookOpen } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useNotifications } from '../contexts/NotificationContext';
 import { useApi } from '../hooks/useApi';
 import { AreasPage } from './AreasPage';
 import { AboutPage } from './AboutPage';
@@ -14,17 +15,21 @@ interface LandingPageProps {
   onPostular?: (convocatoriaId: string) => void;
   currentUser?: any;
   onGoToIntranet?: () => void;
+  onPostulationSuccess?: () => void;
 }
 
-export function LandingPage({ onLoginClick, onPostular, currentUser, onGoToIntranet }: LandingPageProps) {
+export function LandingPage({ onLoginClick, onPostular, currentUser, onGoToIntranet, onPostulationSuccess }: LandingPageProps) {
   const [currentPage, setCurrentPage] = useState<'home' | 'areas' | 'about' | 'projects'>('home');
   const [selectedConvocatoria, setSelectedConvocatoria] = useState<any>(null);
+  const [viewConvocatoriaDetail, setViewConvocatoriaDetail] = useState<any>(null);
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [showAreaProjectsModal, setShowAreaProjectsModal] = useState(false);
   const [selectedProjectForTeam, setSelectedProjectForTeam] = useState<any>(null);
   const [showProjectTeamModal, setShowProjectTeamModal] = useState(false);
   const [teamMembers, setTeamMembers] = useState<{ managers: any[], volunteers: any[] }>({ managers: [], volunteers: [] });
+
+  const { showWarning } = useNotifications();
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,6 +46,44 @@ export function LandingPage({ onLoginClick, onPostular, currentUser, onGoToIntra
 
   // Only show active convocatorias (exclude terminated ones)
   const activeConvocatorias = convocatorias.filter(c => c.status === 'activa');
+
+  // Fetch user applications to prevent duplicate postulations
+  const { data: userApplicationsData } = useApi<any[]>(
+    `/applications/user/${currentUser?.email || 'guest'}`,
+    { fallbackOnError: true },
+    [currentUser]
+  );
+  const userApplications = userApplicationsData || [];
+
+  const hasAlreadyApplied = (convocatoriaId: string) => {
+    // Check if there is any application that is NOT cancelled
+    // We allow re-applying if the previous one was cancelled by the user
+    return userApplications.some(app => app.convocatoriaId === convocatoriaId && app.status !== 'cancelled');
+  };
+
+  // Check for pending postulation on mount or when data loads
+  useEffect(() => {
+    const pendingId = localStorage.getItem('pendingPostulationId');
+    if (pendingId && currentUser && activeConvocatorias.length > 0 && userApplicationsData) {
+      const pendingConv = activeConvocatorias.find(c => c.id === pendingId);
+
+      if (pendingConv) {
+        // Check if already applied
+        if (hasAlreadyApplied(pendingId)) {
+          localStorage.removeItem('pendingPostulationId');
+          showWarning('Ya estás participando', 'Ya te encuentras participando en esta convocatoria.', 15000, [
+            { label: 'Ir a mi Intranet', onClick: () => onGoToIntranet && onGoToIntranet() },
+            { label: 'Quedarme aquí', onClick: () => { }, variant: 'secondary' }
+          ]);
+        } else {
+          // Open modal if not applied
+          setSelectedConvocatoria(pendingConv);
+          setShowApplicationModal(true);
+          localStorage.removeItem('pendingPostulationId');
+        }
+      }
+    }
+  }, [currentUser, activeConvocatorias, userApplicationsData]); // Run when user or convocatorias load
 
   // Carousel State
   const [currentConvocatoriaIndex, setCurrentConvocatoriaIndex] = useState(0);
@@ -532,31 +575,66 @@ export function LandingPage({ onLoginClick, onPostular, currentUser, onGoToIntra
                               </div>
                             )}
 
-                            <div className="mt-auto pt-4">
+                            <div className="mt-auto pt-4 flex flex-col gap-3">
+                              {/* View Detail Button */}
                               <button
+                                onClick={() => setViewConvocatoriaDetail(convocatoria)}
+                                className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl border-2 border-emerald-100 text-emerald-700 hover:bg-emerald-50 transition-all duration-200 font-semibold"
+                              >
+                                <BookOpen className="w-5 h-5" />
+                                Ver Detalle
+                              </button>
+
+                              <button
+                                disabled={(convocatoria.vacancies - (convocatoria.acceptedCount || 0)) <= 0}
                                 onClick={() => {
+                                  // If full, do nothing (disabled)
+                                  if ((convocatoria.vacancies - (convocatoria.acceptedCount || 0)) <= 0) return;
+
                                   // If user is not logged in, redirect to login
                                   if (!currentUser) {
+                                    localStorage.setItem('pendingPostulationId', convocatoria.id);
                                     onLoginClick();
                                     return;
                                   }
-                                  // If user is logged in, show application modal
+                                  // If user is logged in, check if already applied
+                                  if (hasAlreadyApplied(convocatoria.id)) {
+                                    showWarning('Ya estás participando', 'Ya te encuentras participando en esta convocatoria.', 15000, [
+                                      { label: 'Ir a mi Intranet', onClick: () => onGoToIntranet && onGoToIntranet() },
+                                      { label: 'Quedarme aquí', onClick: () => { }, variant: 'secondary' }
+                                    ]);
+                                    return;
+                                  }
+
+                                  // Show application modal
                                   setSelectedConvocatoria(convocatoria);
                                   setShowApplicationModal(true);
                                 }}
-                                className="group/btn w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-6 py-4 rounded-xl hover:from-emerald-700 hover:to-emerald-800 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold"
+                                className={`group/btn w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl transition-all duration-200 shadow-lg font-semibold ${(convocatoria.vacancies - (convocatoria.acceptedCount || 0)) <= 0
+                                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+                                  : 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white hover:from-emerald-700 hover:to-emerald-800 hover:shadow-xl'
+                                  }`}
                               >
-                                <HandHeart className="w-5 h-5" />
-                                {currentUser ? (
-                                  currentUser.role === 'admin' || currentUser.role === 'admin_master'
-                                    ? 'Ver Admin'
-                                    : currentUser.role === 'volunteer'
-                                      ? 'Ver Mi Intranet'
-                                      : 'Postular Ahora'
+                                {(convocatoria.vacancies - (convocatoria.acceptedCount || 0)) <= 0 ? (
+                                  <>
+                                    <X className="w-5 h-5" />
+                                    Convocatoria Completa
+                                  </>
                                 ) : (
-                                  'Iniciar Sesión'
+                                  <>
+                                    <HandHeart className="w-5 h-5" />
+                                    {currentUser ? (
+                                      currentUser.role === 'admin' || currentUser.role === 'admin_master'
+                                        ? 'Ver Admin'
+                                        : currentUser.role === 'volunteer'
+                                          ? 'Ver Mi Intranet'
+                                          : 'Postular Ahora'
+                                    ) : (
+                                      'Iniciar Sesión para Postular'
+                                    )}
+                                    <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
+                                  </>
                                 )}
-                                <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
                               </button>
                             </div>
                           </div>
@@ -951,6 +1029,114 @@ export function LandingPage({ onLoginClick, onPostular, currentUser, onGoToIntra
       }
 
 
+
+      {/* Public Detail Modal */}
+      {viewConvocatoriaDetail && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in-up">
+            <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+              <h3 className="text-2xl font-bold text-gray-900 pr-8">{viewConvocatoriaDetail.title}</h3>
+              <button
+                onClick={() => setViewConvocatoriaDetail(null)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500 hover:text-gray-900"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                  <div className="flex items-center gap-2 mb-1 text-emerald-800 font-semibold">
+                    <MapPin className="w-4 h-4" /> Área
+                  </div>
+                  <p className="text-emerald-900 pl-6">{viewConvocatoriaDetail.area}</p>
+                </div>
+                <div className="bg-teal-50 p-4 rounded-xl border border-teal-100">
+                  <div className="flex items-center gap-2 mb-1 text-teal-800 font-semibold">
+                    <Calendar className="w-4 h-4" /> Periodo
+                  </div>
+                  <p className="text-teal-900 pl-6">
+                    {new Date(viewConvocatoriaDetail.startDate).toLocaleDateString('es-ES')} - {new Date(viewConvocatoriaDetail.endDate).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
+                  <div className="flex items-center gap-2 mb-1 text-purple-800 font-semibold">
+                    <Users className="w-4 h-4" /> Vacantes
+                  </div>
+                  <p className="text-purple-900 pl-6">
+                    {viewConvocatoriaDetail.vacancies - (viewConvocatoriaDetail.acceptedCount || 0)} disponibles
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="flex items-center gap-2 text-lg font-bold text-gray-900 mb-3">
+                  <FolderOpen className="w-5 h-5 text-gray-400" />
+                  Descripción
+                </h4>
+                <p className="text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  {viewConvocatoriaDetail.description}
+                </p>
+              </div>
+
+              {viewConvocatoriaDetail.requirements && (
+                <div>
+                  <h4 className="flex items-center gap-2 text-lg font-bold text-gray-900 mb-3">
+                    <CheckCircle className="w-5 h-5 text-emerald-500" />
+                    Requisitos
+                  </h4>
+                  <p className="text-gray-700 leading-relaxed bg-amber-50 p-4 rounded-xl border border-amber-200">
+                    {viewConvocatoriaDetail.requirements}
+                  </p>
+                </div>
+              )}
+
+              <div className="pt-6 border-t border-gray-100 flex justify-end gap-3">
+                <button
+                  onClick={() => setViewConvocatoriaDetail(null)}
+                  className="px-5 py-2.5 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors"
+                >
+                  Cerrar
+                </button>
+                <button
+                  onClick={() => {
+                    // Check vacanties
+                    if ((viewConvocatoriaDetail.vacancies - (viewConvocatoriaDetail.acceptedCount || 0)) <= 0) return;
+
+                    if (!currentUser) {
+                      localStorage.setItem('pendingPostulationId', viewConvocatoriaDetail.id);
+                      onLoginClick();
+                      return;
+                    }
+
+                    // Check if already applied
+                    if (hasAlreadyApplied(viewConvocatoriaDetail.id)) {
+                      showWarning('Ya estás participando', 'Ya te encuentras participando en esta convocatoria.', 15000, [
+                        { label: 'Ir a mi Intranet', onClick: () => onGoToIntranet && onGoToIntranet() },
+                        { label: 'Quedarme aquí', onClick: () => { }, variant: 'secondary' }
+                      ]);
+                      return;
+                    }
+
+                    setViewConvocatoriaDetail(null);
+                    setSelectedConvocatoria(viewConvocatoriaDetail);
+                    setShowApplicationModal(true);
+                  }}
+                  disabled={(viewConvocatoriaDetail.vacancies - (viewConvocatoriaDetail.acceptedCount || 0)) <= 0}
+                  className={`px-6 py-2.5 rounded-lg text-white font-medium shadow-lg transition-all ${(viewConvocatoriaDetail.vacancies - (viewConvocatoriaDetail.acceptedCount || 0)) <= 0
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-700 hover:translate-y-0.5'
+                    }`}
+                >
+                  {(viewConvocatoriaDetail.vacancies - (viewConvocatoriaDetail.acceptedCount || 0)) <= 0 ? 'Convocatoria Completa' : 'Postular Ahora'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Application Modal */}
       {
         showApplicationModal && selectedConvocatoria && currentUser && (
@@ -958,12 +1144,16 @@ export function LandingPage({ onLoginClick, onPostular, currentUser, onGoToIntra
             onClose={() => {
               setShowApplicationModal(false);
               setSelectedConvocatoria(null);
+              // If user cancels, we must clear the pending state so it doesn't reopen on refresh
+              localStorage.removeItem('pendingPostulationId');
             }}
             convocatoria={selectedConvocatoria}
             currentUser={currentUser}
             onSuccess={() => {
               setShowApplicationModal(false);
               setSelectedConvocatoria(null);
+              localStorage.removeItem('pendingPostulationId'); // Clear on success too
+              if (onPostulationSuccess) onPostulationSuccess();
             }}
           />
         )

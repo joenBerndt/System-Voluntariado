@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { CheckCircle2, XCircle, AlertCircle, Info, X, Loader2 } from 'lucide-react';
 
+export interface NotificationAction {
+  label: string;
+  onClick: () => void;
+  variant?: 'primary' | 'secondary' | 'outline';
+}
+
 interface Notification {
   id: string;
   type: 'success' | 'error' | 'warning' | 'info' | 'loading';
@@ -8,13 +14,14 @@ interface Notification {
   message?: string;
   duration?: number;
   persistent?: boolean;
+  actions?: NotificationAction[];
 }
 
 interface NotificationContextType {
   notifications: Notification[];
   showSuccess: (title: string, message?: string, duration?: number) => string;
   showError: (title: string, message?: string, duration?: number) => string;
-  showWarning: (title: string, message?: string, duration?: number) => string;
+  showWarning: (title: string, message?: string, duration?: number, actions?: NotificationAction[]) => string;
   showInfo: (title: string, message?: string, duration?: number) => string;
   showLoading: (title: string, message?: string) => string;
   hideNotification: (id: string) => void;
@@ -26,25 +33,28 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const addNotification = useCallback((notification: Omit<Notification, 'id'>) => {
-    const id = Math.random().toString(36).substr(2, 9);
-    const newNotification = { ...notification, id };
-    
-    setNotifications(prev => [...prev, newNotification]);
-
-    // Auto-remove después del duration (excepto loading y persistent)
-    if (!notification.persistent && notification.type !== 'loading') {
-      setTimeout(() => {
-        hideNotification(id);
-      }, notification.duration || 5000);
-    }
-
-    return id;
-  }, []);
-
   const hideNotification = useCallback((id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
   }, []);
+
+  const addNotification = useCallback((notification: Omit<Notification, 'id'>) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const newNotification = { ...notification, id };
+
+    setNotifications(prev => [...prev, newNotification]);
+
+    // Auto-remove after duration (except loading, persistent)
+    if (!notification.persistent && notification.type !== 'loading') {
+      // Give more time if actionable
+      const autoHideDuration = notification.duration || (notification.actions ? 10000 : 5000);
+
+      setTimeout(() => {
+        hideNotification(id);
+      }, autoHideDuration);
+    }
+
+    return id;
+  }, [hideNotification]);
 
   const clearAll = useCallback(() => {
     setNotifications([]);
@@ -58,8 +68,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     return addNotification({ type: 'error', title, message, duration: duration || 7000 });
   }, [addNotification]);
 
-  const showWarning = useCallback((title: string, message?: string, duration?: number) => {
-    return addNotification({ type: 'warning', title, message, duration });
+  const showWarning = useCallback((title: string, message?: string, duration?: number, actions?: NotificationAction[]) => {
+    return addNotification({ type: 'warning', title, message, duration, actions });
   }, [addNotification]);
 
   const showInfo = useCallback((title: string, message?: string, duration?: number) => {
@@ -93,7 +103,7 @@ function NotificationContainer() {
   const { notifications, hideNotification } = useNotifications();
 
   return (
-    <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-3 max-w-md pointer-events-none">
+    <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-3 max-w-md pointer-events-none w-full px-4 sm:px-0">
       {notifications.map((notification) => (
         <NotificationToast
           key={notification.id}
@@ -158,12 +168,12 @@ function NotificationToast({ notification, onClose }: { notification: Notificati
   const Icon = config.icon;
 
   return (
-    <div 
-      className="pointer-events-auto animate-slide-in-right-bounce"
+    <div
+      className="pointer-events-auto animate-slide-in-right-bounce w-full"
       role="alert"
       aria-live="polite"
     >
-      <div className={`bg-gradient-to-r ${config.bgGradient} rounded-xl shadow-2xl overflow-hidden transform hover:scale-105 transition-transform`}>
+      <div className={`bg-gradient-to-r ${config.bgGradient} rounded-xl shadow-2xl overflow-hidden transform hover:scale-[1.02] transition-transform`}>
         <div className="p-4">
           <div className="flex items-start gap-3">
             {/* Icon */}
@@ -174,21 +184,43 @@ function NotificationToast({ notification, onClose }: { notification: Notificati
             {/* Content */}
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
-                <h4 className="text-white font-semibold text-base">
+                <h4 className="text-white font-semibold text-base leading-tight pt-0.5">
                   {config.emoji} {notification.title}
                 </h4>
                 {notification.type !== 'loading' && (
                   <button
                     onClick={onClose}
-                    className="p-1 hover:bg-white/20 rounded transition-colors flex-shrink-0"
+                    className="p-1 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0 -mt-1 -mr-1"
                     aria-label="Cerrar notificación"
                   >
-                    <X className="w-4 h-4 text-white" />
+                    <X className="w-5 h-5 text-white/90" />
                   </button>
                 )}
               </div>
+
               {notification.message && (
-                <p className="text-white/90 text-sm mt-1">{notification.message}</p>
+                <p className="text-white/95 text-sm mt-2 leading-relaxed">{notification.message}</p>
+              )}
+
+              {/* Actions */}
+              {notification.actions && notification.actions.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-white/20">
+                  {notification.actions.map((action, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        action.onClick();
+                        onClose();
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all shadow-sm ${action.variant === 'secondary'
+                          ? 'bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm ring-1 ring-white/40'
+                          : 'bg-white text-gray-900 hover:bg-gray-50 hover:shadow-md'
+                        }`}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -212,3 +244,4 @@ export function useNotifications() {
   }
   return context;
 }
+

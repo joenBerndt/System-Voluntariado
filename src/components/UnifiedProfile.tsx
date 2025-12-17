@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { User, Mail, Phone, MapPin, Camera, Lock, Save, X, Edit2, CheckCircle, Award, Briefcase, Shield, Crown, Eye, EyeOff } from 'lucide-react';
 import { projectId, publicAnonKey } from '../utils/supabase/info.tsx';
+import { useNotifications } from '../contexts/NotificationContext';
 
 interface UnifiedProfileProps {
   user: any;
@@ -15,6 +16,7 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { showSuccess, showError, showWarning } = useNotifications();
 
   // Form state
   const [name, setName] = useState(user?.name || '');
@@ -119,12 +121,12 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      alert('La imagen debe ser menor a 5MB');
+      showWarning('Archivo muy grande', 'La imagen debe ser menor a 5MB');
       return;
     }
 
     if (!file.type.startsWith('image/')) {
-      alert('Solo se permiten archivos de imagen');
+      showWarning('Formato incorrecto', 'Solo se permiten archivos de imagen');
       return;
     }
 
@@ -145,13 +147,13 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
       const result = await response.json();
       if (result.success) {
         setPhotoUrl(result.data.url);
-        alert('Foto actualizada exitosamente');
+        showSuccess('Foto Actualizada', 'Tu foto de perfil se ha guardado correctamente.');
       } else {
-        alert('Error al subir la foto: ' + result.error);
+        showError('Error de Carga', 'No se pudo subir la foto: ' + result.error);
       }
     } catch (error) {
       console.error('Error uploading photo:', error);
-      alert('Error al subir la foto');
+      showError('Error Inesperado', 'Ocurrió un error al subir la foto.');
     } finally {
       setUploading(false);
     }
@@ -159,17 +161,17 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
 
   const handleSave = async () => {
     if (!name.trim() || !email.trim()) {
-      alert('El nombre y correo son obligatorios');
+      showWarning('Campos Incompletos', 'El nombre y correo son obligatorios para tu perfil.');
       return;
     }
 
     if (password && password !== confirmPassword) {
-      alert('Las contraseñas no coinciden');
+      showWarning('Contraseñas no coinciden', 'Por favor verifica que ambas contraseñas sean iguales.');
       return;
     }
 
     if (password && password.length < 6) {
-      alert('La contraseña debe tener al menos 6 caracteres');
+      showWarning('Contraseña Insegura', 'La contraseña debe tener al menos 6 caracteres.');
       return;
     }
 
@@ -210,13 +212,13 @@ export function UnifiedProfile({ user, onUpdate, applicationsData = [], showStat
         setEditing(false);
         setPassword('');
         setConfirmPassword('');
-        alert('Perfil actualizado exitosamente');
+        showSuccess('Perfil Actualizado', 'Tu información personal ha sido guardada con éxito.');
       } else {
-        alert('Error al actualizar el perfil: ' + result.error);
+        showError('Error de Actualización', 'No se pudo guardar el perfil: ' + result.error);
       }
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert('Error al guardar el perfil');
+      showError('Error de Conexión', 'Ocurrió un error al intentar guardar tu perfil.');
     } finally {
       setSaving(false);
     }

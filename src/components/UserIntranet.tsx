@@ -3,6 +3,8 @@ import { LogOut, User, Mail, Phone, MapPin, FileText, Clock, CheckCircle, XCircl
 import { useApi } from '../hooks/useApi';
 import { ApplicationModal } from './ApplicationModal';
 import { UnifiedProfile } from './UnifiedProfile';
+import { ConvocatoriaDetail } from './ConvocatoriaDetail';
+import { VolunteerInterviews } from './volunteer/VolunteerInterviews';
 import { ApplicationProgressBar } from './ApplicationProgressBar';
 import logoIIAP from '../assets/30559607b1a3dc361e3c8d4f3f9460064ad9a131.png';
 
@@ -23,6 +25,7 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedDateRange, setSelectedDateRange] = useState('all');
   const [selectedConvocatoria, setSelectedConvocatoria] = useState<any>(null);
+  const [viewConvocatoriaDetail, setViewConvocatoriaDetail] = useState<any>(null);
   const [showApplicationModal, setShowApplicationModal] = useState(false);
 
   const { data: applicationsData, loading: loadingApplications, refetch: refetchApplications } = useApi<any[]>('/applications');
@@ -171,7 +174,7 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
     { id: 'applications' as const, label: 'Mis Postulaciones', icon: FileText },
     { id: 'convocatorias' as const, label: 'Convocatorias Disponibles', icon: Briefcase },
     { id: 'interviews' as const, label: 'Mis Entrevistas', icon: Video, badge: myInterviews.length },
-    { id: 'history' as const, label: 'Historial', icon: History },
+    // { id: 'history' as const, label: 'Historial', icon: History },
     { id: 'profile' as const, label: 'Mi Perfil', icon: User },
   ];
 
@@ -223,8 +226,8 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
                   key={item.id}
                   onClick={() => setCurrentSection(item.id)}
                   className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${currentSection === item.id
-                      ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg'
-                      : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
+                    ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg'
+                    : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
                     }`}
                 >
                   <div className="flex items-center gap-3">
@@ -233,8 +236,8 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
                   </div>
                   {item.badge !== undefined && item.badge > 0 && (
                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${currentSection === item.id
-                        ? 'bg-white text-emerald-700'
-                        : 'bg-emerald-100 text-emerald-700'
+                      ? 'bg-white text-emerald-700'
+                      : 'bg-emerald-100 text-emerald-700'
                       }`}>
                       {item.badge}
                     </span>
@@ -439,306 +442,217 @@ export function UserIntranet({ currentUser, onLogout, onBackToLanding, onUserUpd
 
           {/* CONVOCATORIAS DISPONIBLES */}
           {currentSection === 'convocatorias' && (
-            <div>
-              <div className="mb-6">
-                <h2 className="text-gray-900 mb-2">Convocatorias Disponibles</h2>
-                <p className="text-gray-600">Explora y postula a las convocatorias activas</p>
-              </div>
-
-              {/* Search and Filters */}
-              <div className="bg-white rounded-xl shadow-md border-2 border-gray-100 p-6 mb-6 space-y-4">
-                {/* Search */}
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar convocatorias..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-emerald-500 transition-colors"
-                  />
+            viewConvocatoriaDetail ? (
+              <ConvocatoriaDetail
+                convocatoria={viewConvocatoriaDetail}
+                onBack={() => setViewConvocatoriaDetail(null)}
+              />
+            ) : (
+              <div>
+                <div className="mb-6">
+                  <h2 className="text-gray-900 mb-2">Convocatorias Disponibles</h2>
+                  <p className="text-gray-600">Explora y postula a las convocatorias activas</p>
                 </div>
 
-                {/* Filters */}
-                <div className="flex gap-4 flex-wrap">
-                  <div className="flex-1 min-w-[200px]">
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">Área</label>
-                    <select
-                      value={selectedArea}
-                      onChange={(e) => setSelectedArea(e.target.value)}
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-emerald-500"
-                    >
-                      <option value="all">Todas las áreas</option>
-                      {areasData?.filter(a => a.published).map(area => (
-                        <option key={area.id} value={area.name}>{area.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                {/* Search and Filters */}
+                <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-sm mb-8 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+                      <input
+                        type="text"
+                        placeholder="Buscar convocatorias..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-12 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 placeholder-gray-500"
+                      />
+                    </div>
 
-                  <div className="flex-1 min-w-[200px]">
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">Fecha de cierre</label>
-                    <select
-                      value={selectedDateRange}
-                      onChange={(e) => setSelectedDateRange(e.target.value)}
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-emerald-500"
-                    >
-                      <option value="all">Todas</option>
-                      <option value="week">Próximos 7 días</option>
-                      <option value="month">Próximos 30 días</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <p className="text-sm text-gray-600">
-                    {availableConvocatorias.length} convocatoria{availableConvocatorias.length !== 1 ? 's' : ''} encontrada{availableConvocatorias.length !== 1 ? 's' : ''}
-                  </p>
-                  {(searchTerm || selectedArea !== 'all' || selectedDateRange !== 'all') && (
-                    <button
-                      onClick={() => {
-                        setSearchTerm('');
-                        setSelectedArea('all');
-                        setSelectedDateRange('all');
-                      }}
-                      className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
-                    >
-                      Limpiar filtros
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Convocatorias List */}
-              {loadingConvocatorias ? (
-                <div className="text-center py-12 bg-white rounded-xl shadow-lg border-2 border-gray-100">
-                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600"></div>
-                  <p className="text-gray-600 mt-4">Cargando convocatorias...</p>
-                </div>
-              ) : availableConvocatorias.length > 0 ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {availableConvocatorias.map((convocatoria) => {
-                    const alreadyApplied = hasApplied(convocatoria.id);
-                    const daysLeft = Math.ceil((new Date(convocatoria.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                    const isClosingSoon = daysLeft <= 7 && daysLeft > 0;
-
-                    return (
-                      <div
-                        key={convocatoria.id}
-                        className={`bg-white rounded-xl shadow-md p-6 border-2 transition-all duration-200 hover:shadow-lg ${isClosingSoon ? 'border-amber-300 bg-amber-50' : 'border-gray-100 hover:border-emerald-200'
-                          }`}
-                      >
-                        {isClosingSoon && (
-                          <div className="mb-3 px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-sm font-semibold inline-flex items-center gap-2">
-                            <Clock className="w-4 h-4" />
-                            ¡Cierra en {daysLeft} día{daysLeft !== 1 ? 's' : ''}!
-                          </div>
-                        )}
-
-                        <h3 className="text-gray-900 mb-3">{convocatoria.title}</h3>
-
-                        <div className="space-y-2 mb-4">
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <MapPin className="w-4 h-4 text-emerald-600" />
-                            <span className="font-medium">{convocatoria.area}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Calendar className="w-4 h-4 text-emerald-600" />
-                            <span>Hasta: {new Date(convocatoria.endDate).toLocaleDateString('es-ES', {
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric'
-                            })}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <User className="w-4 h-4 text-emerald-600" />
-                            <span>{convocatoria.vacancies} vacante{convocatoria.vacancies !== 1 ? 's' : ''} • {convocatoria.applicants || 0} postulante{convocatoria.applicants !== 1 ? 's' : ''}</span>
-                          </div>
-                        </div>
-
-                        <p className="text-gray-600 text-sm mb-4 line-clamp-3">{convocatoria.description}</p>
-
-                        <div className="flex gap-3">
-                          {alreadyApplied ? (
-                            <div className="w-full py-2 px-4 bg-gray-100 text-gray-600 rounded-lg text-center font-medium">
-                              Ya postulaste
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                setSelectedConvocatoria(convocatoria);
-                                setShowApplicationModal(true);
-                              }}
-                              className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-6 py-2 rounded-lg hover:from-emerald-700 hover:to-emerald-800 transition-all duration-200 shadow-md font-medium hover:shadow-lg"
-                            >
-                              Postular
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              // Here you would open convocatoria detail
-                              alert('Ver detalles completos de la convocatoria');
-                            }}
-                            className="px-6 py-2 border-2 border-emerald-600 text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors font-medium"
-                          >
-                            Ver más
-                          </button>
-                        </div>
+                    {/* Area Filter */}
+                    <div className="relative">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <Briefcase className="text-gray-500 w-5 h-5" />
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="bg-white rounded-xl shadow-lg p-12 text-center border-2 border-gray-100">
-                  <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Briefcase className="w-10 h-10 text-gray-400" />
+                      <select
+                        value={selectedArea}
+                        onChange={(e) => setSelectedArea(e.target.value)}
+                        className="w-full pl-12 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 bg-white appearance-none"
+                      >
+                        <option value="all">Todas las áreas</option>
+                        {areasData?.filter(a => a.published).map(area => (
+                          <option key={area.id} value={area.name}>{area.name}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    {/* Date Filter */}
+                    <div className="relative">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <Calendar className="text-gray-500 w-5 h-5" />
+                      </div>
+                      <select
+                        value={selectedDateRange}
+                        onChange={(e) => setSelectedDateRange(e.target.value)}
+                        className="w-full pl-12 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 bg-white appearance-none"
+                      >
+                        <option value="all">Cualquier fecha</option>
+                        <option value="week">Próximos 7 días</option>
+                        <option value="month">Próximos 30 días</option>
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="text-gray-900 mb-2">No se encontraron convocatorias</h3>
-                  <p className="text-gray-600">
-                    {searchTerm || selectedArea !== 'all' || selectedDateRange !== 'all'
-                      ? 'Intenta ajustar los filtros de búsqueda'
-                      : 'No hay convocatorias activas en este momento'}
-                  </p>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                    <p className="text-sm text-gray-600 font-medium">
+                      {availableConvocatorias.length} convocatoria{availableConvocatorias.length !== 1 ? 's' : ''} encontrada{availableConvocatorias.length !== 1 ? 's' : ''}
+                    </p>
+                    {(searchTerm || selectedArea !== 'all' || selectedDateRange !== 'all') && (
+                      <button
+                        onClick={() => {
+                          setSearchTerm('');
+                          setSelectedArea('all');
+                          setSelectedDateRange('all');
+                        }}
+                        className="text-sm text-emerald-600 hover:text-emerald-700 font-bold hover:underline"
+                      >
+                        Limpiar filtros
+                      </button>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Convocatorias List */}
+                {loadingConvocatorias ? (
+                  <div className="text-center py-12 bg-white rounded-xl shadow-lg border-2 border-gray-100">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600"></div>
+                    <p className="text-gray-600 mt-4">Cargando convocatorias...</p>
+                  </div>
+                ) : availableConvocatorias.length > 0 ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {availableConvocatorias.map((convocatoria) => {
+                      const alreadyApplied = hasApplied(convocatoria.id);
+                      const daysLeft = Math.ceil((new Date(convocatoria.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                      const isClosingSoon = daysLeft <= 7 && daysLeft > 0;
+
+                      return (
+                        <div
+                          key={convocatoria.id}
+                          className={`group bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 h-full flex flex-col ${isClosingSoon ? 'border-amber-300' : 'border-gray-100 hover:border-emerald-300'}`}
+                        >
+                          <div className={`h-3 shrink-0 ${isClosingSoon ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-emerald-600 to-teal-600'}`}></div>
+
+                          <div className="p-6 flex flex-col flex-1">
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex-1">
+                                <h3 className="text-gray-900 mb-2 font-bold text-lg group-hover:text-emerald-700 transition-colors line-clamp-2">{convocatoria.title}</h3>
+                                <p className="text-gray-600 leading-relaxed text-sm line-clamp-3 mb-3">{convocatoria.description}</p>
+                              </div>
+                              {isClosingSoon ? (
+                                <span className="shrink-0 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold border border-amber-200 ml-2 whitespace-nowrap">
+                                  ¡Cierra pronto!
+                                </span>
+                              ) : (
+                                <span className="shrink-0 px-3 py-1 bg-emerald-50 text-emerald-800 rounded-full text-xs font-bold border border-emerald-200 ml-2 whitespace-nowrap">
+                                  Activa
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="space-y-3 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200 flex-grow">
+                              <div className="flex items-start gap-3 text-gray-800">
+                                <div className="bg-emerald-100 p-2 rounded-lg shadow-sm shrink-0">
+                                  <MapPin className="w-4 h-4 text-emerald-700" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs text-gray-500 font-medium">Área</p>
+                                  <p className="text-sm font-semibold truncate" title={convocatoria.area}>{convocatoria.area}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-start gap-3 text-gray-800">
+                                <div className="bg-teal-100 p-2 rounded-lg shadow-sm shrink-0">
+                                  <Calendar className="w-4 h-4 text-teal-700" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs text-gray-500 font-medium">Cierre</p>
+                                  <p className={`text-sm font-semibold truncate ${isClosingSoon ? 'text-amber-700' : ''}`}>
+                                    {new Date(convocatoria.endDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-start gap-3 text-gray-800">
+                                <div className="bg-purple-100 p-2 rounded-lg shadow-sm shrink-0">
+                                  <User className="w-4 h-4 text-purple-700" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs text-gray-500 font-medium">Vacantes</p>
+                                  <p className="text-sm font-semibold">{convocatoria.vacancies - (convocatoria.acceptedCount || 0)} disponibles</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-auto pt-2 grid grid-cols-2 gap-3">
+                              <button
+                                onClick={() => setViewConvocatoriaDetail(convocatoria)}
+                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-emerald-100 text-emerald-700 hover:bg-emerald-50 transition-all font-bold text-sm"
+                              >
+                                Ver más
+                              </button>
+
+                              {alreadyApplied ? (
+                                <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-500 rounded-xl font-bold text-sm cursor-default border-2 border-gray-200">
+                                  Ya postulaste
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setSelectedConvocatoria(convocatoria);
+                                    setShowApplicationModal(true);
+                                  }}
+                                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl hover:from-emerald-700 hover:to-emerald-800 hover:shadow-lg transition-all font-bold text-sm"
+                                >
+                                  Postular
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl shadow-lg p-12 text-center border-2 border-gray-100">
+                    <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Briefcase className="w-10 h-10 text-gray-400" />
+                    </div>
+                    <h3 className="text-gray-900 mb-2">No se encontraron convocatorias</h3>
+                    <p className="text-gray-600">
+                      {searchTerm || selectedArea !== 'all' || selectedDateRange !== 'all'
+                        ? 'Intenta ajustar los filtros de búsqueda'
+                        : 'No hay convocatorias activas en este momento'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )
           )}
 
           {/* MIS ENTREVISTAS */}
           {currentSection === 'interviews' && (
-            <div>
-              <div className="mb-6">
-                <h2 className="text-gray-900 mb-2">Mis Entrevistas</h2>
-                <p className="text-gray-600">Revisa tus entrevistas programadas</p>
-              </div>
-
-              {myInterviews.length > 0 ? (
-                <div className="space-y-6">
-                  {myInterviews.map((interview) => {
-                    const interviewDate = interview.interviewDate ? new Date(interview.interviewDate) : null;
-                    const isPast = interviewDate ? interviewDate < new Date() : false;
-                    const isToday = interviewDate ? interviewDate.toDateString() === new Date().toDateString() : false;
-                    const isSoon = interviewDate && !isPast && !isToday ? interviewDate <= new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) : false;
-
-                    return (
-                      <div
-                        key={interview.id}
-                        className={`bg-white rounded-xl shadow-md p-6 border-2 transition-all ${isToday
-                            ? 'border-amber-300 bg-amber-50'
-                            : isSoon
-                              ? 'border-emerald-300 bg-emerald-50'
-                              : isPast
-                                ? 'border-gray-200 bg-gray-50'
-                                : 'border-gray-200'
-                          }`}
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="text-gray-900">{interview.convocatoriaTitle}</h3>
-                              {isToday && (
-                                <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm font-medium">
-                                  ¡Hoy!
-                                </span>
-                              )}
-                              {isSoon && !isToday && (
-                                <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
-                                  Próximamente
-                                </span>
-                              )}
-                              {isPast && (
-                                <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
-                                  Finalizada
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {interviewDate && (
-                          <div className={`p-4 rounded-lg border mb-4 ${isToday
-                              ? 'bg-amber-100 border-amber-200'
-                              : 'bg-gray-50 border-gray-200'
-                            }`}>
-                            <p className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-                              <CheckCircle className="w-4 h-4 text-emerald-600" />
-                              Detalles de la Entrevista
-                            </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                              <div className="flex items-center gap-2 text-gray-700">
-                                <Calendar className="w-4 h-4 text-emerald-600" />
-                                <span className="font-medium">
-                                  {interviewDate.toLocaleDateString('es-ES', {
-                                    weekday: 'long',
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric',
-                                  })}
-                                </span>
-                              </div>
-                              {interview.interviewTime && (
-                                <div className="flex items-center gap-2 text-gray-700">
-                                  <Clock className="w-4 h-4 text-emerald-600" />
-                                  <span className="font-medium">{interview.interviewTime}</span>
-                                </div>
-                              )}
-                              {interview.interviewLocation && (
-                                <div className="flex items-center gap-2 text-gray-700 md:col-span-2">
-                                  <MapPin className="w-4 h-4 text-emerald-600" />
-                                  <span>{interview.interviewLocation}</span>
-                                </div>
-                              )}
-                              {interview.interviewNotes && (
-                                <div className="flex items-start gap-2 text-gray-700 md:col-span-2">
-                                  <FileText className="w-4 h-4 text-emerald-600 mt-1" />
-                                  <div>
-                                    <p className="font-medium mb-1">Instrucciones:</p>
-                                    <p className="text-gray-600">{interview.interviewNotes}</p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {(isToday || isSoon) && !isPast && (
-                          <div className={`p-3 rounded-lg flex items-start gap-2 ${isToday
-                              ? 'bg-amber-100 border border-amber-300'
-                              : 'bg-emerald-50 border border-emerald-200'
-                            }`}>
-                            <Clock className={`w-5 h-5 mt-0.5 ${isToday ? 'text-amber-600' : 'text-emerald-600'
-                              }`} />
-                            <div className="flex-1">
-                              <p className={`text-sm font-medium ${isToday ? 'text-amber-900' : 'text-emerald-900'
-                                }`}>
-                                {isToday
-                                  ? '¡Recuerda tu entrevista hoy!'
-                                  : 'Prepárate para tu entrevista'}
-                              </p>
-                              <p className={`text-sm mt-1 ${isToday ? 'text-amber-700' : 'text-emerald-700'
-                                }`}>
-                                {isToday
-                                  ? 'Asegúrate de llegar 10 minutos antes. Revisa la ubicación y trae los documentos necesarios.'
-                                  : 'Revisa los detalles de tu entrevista y prepara tus documentos con anticipación.'}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="bg-white rounded-xl shadow-lg p-12 text-center border-2 border-gray-100">
-                  <div className="bg-purple-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Video className="w-10 h-10 text-purple-600" />
-                  </div>
-                  <h3 className="text-gray-900 mb-2">No tienes entrevistas programadas</h3>
-                  <p className="text-gray-600">
-                    Las entrevistas aparecerán aquí una vez que el administrador las programe
-                  </p>
-                </div>
-              )}
-            </div>
+            <VolunteerInterviews
+              interviews={myInterviews}
+              convocatorias={convocatoriasData || []}
+            />
           )}
 
           {/* HISTORIAL */}

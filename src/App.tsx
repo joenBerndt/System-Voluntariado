@@ -116,20 +116,35 @@ export default function App() {
         localStorage.setItem('iiap_volunteer_email', email);
         setCurrentVolunteer(result.data);
 
-        // Set view based on role
+        // Determine user type and auth persistence
+        let newUserType: UserType = null;
         if (result.data.role === 'admin' || result.data.role === 'admin_master') {
           localStorage.setItem('iiap_admin_auth', 'true');
-          setUserType('admin');
-          setCurrentView('admin');
+          newUserType = 'admin';
         } else if (result.data.role === 'volunteer') {
-          setUserType('volunteer');
-          setCurrentView('volunteer-intranet');
+          newUserType = 'volunteer';
         } else if (result.data.role === 'user') {
-          setUserType('user');
-          setCurrentView('user-intranet');
-        } else {
-          setUserType(null);
+          newUserType = 'user';
+        }
+        setUserType(newUserType);
+
+        // Check for pending postulation
+        const pendingPostulationId = localStorage.getItem('pendingPostulationId');
+
+        if (pendingPostulationId) {
+          // If there is a pending postulation, go to landing to complete it
           setCurrentView('landing');
+        } else {
+          // Normal flow: Set view based on role
+          if (newUserType === 'admin') {
+            setCurrentView('admin');
+          } else if (newUserType === 'volunteer') {
+            setCurrentView('volunteer-intranet');
+          } else if (newUserType === 'user') {
+            setCurrentView('user-intranet');
+          } else {
+            setCurrentView('landing');
+          }
         }
 
         setLoginError('');
@@ -138,6 +153,22 @@ export default function App() {
       }
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Error al iniciar sesión');
+    }
+  };
+
+  const handlePostulationSuccess = () => {
+    if (currentVolunteer) {
+      // Store a flash message for the intranet to read (optional, or just redirect)
+      localStorage.setItem('postulation_success_message', 'true');
+
+      if (currentVolunteer.role === 'volunteer') {
+        setCurrentView('volunteer-intranet');
+      } else if (currentVolunteer.role === 'user') {
+        setCurrentView('user-intranet');
+      } else if (currentVolunteer.role === 'admin' || currentVolunteer.role === 'admin_master') {
+        // Admins might apply too? If so, go to admin
+        setCurrentView('admin');
+      }
     }
   };
 
@@ -185,10 +216,11 @@ export default function App() {
 
   if (currentView === 'landing') {
     return (
-      <>
+      <NotificationProvider>
         <LandingPage
           onLoginClick={() => setCurrentView('login')}
           onPostular={handlePostular}
+          onPostulationSuccess={handlePostulationSuccess}
           currentUser={currentVolunteer}
           onGoToIntranet={() => {
             if (currentVolunteer) {
@@ -203,7 +235,7 @@ export default function App() {
           }}
         />
         <ServerStatus />
-      </>
+      </NotificationProvider>
     );
   }
 
@@ -279,6 +311,19 @@ export default function App() {
       <LandingPage
         onLoginClick={() => setCurrentView('login')}
         onPostular={handlePostular}
+        onPostulationSuccess={handlePostulationSuccess}
+        currentUser={currentVolunteer}
+        onGoToIntranet={() => {
+          if (currentVolunteer) {
+            if (currentVolunteer.role === 'admin' || currentVolunteer.role === 'admin_master') {
+              setCurrentView('admin');
+            } else if (currentVolunteer.role === 'volunteer') {
+              setCurrentView('volunteer-intranet');
+            } else if (currentVolunteer.role === 'user') {
+              setCurrentView('user-intranet');
+            }
+          }
+        }}
       />
       <ServerStatus />
     </NotificationProvider>

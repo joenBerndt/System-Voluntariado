@@ -63,7 +63,7 @@ export function VolunteerLayout({ onLogout, currentUser, onUserUpdate, onBackToL
     { id: 'convocatorias' as Section, label: 'Convocatorias', icon: Megaphone },
     { id: 'applications' as Section, label: 'Mis Postulaciones', icon: FileText, badge: myApplications.length },
     { id: 'interviews' as Section, label: 'Entrevistas', icon: Calendar, badge: myInterviews.length },
-    { id: 'history' as Section, label: 'Historial', icon: History },
+    // { id: 'history' as Section, label: 'Historial', icon: History },
     // Only show Asignaciones if volunteer is a project manager
     ...(isProjectManager ? [{ id: 'content' as Section, label: 'Asignaciones', icon: Video }] : []),
     { id: 'profile' as Section, label: 'Perfil', icon: User },
