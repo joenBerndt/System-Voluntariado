@@ -34,6 +34,7 @@ export function LandingPage({ onLoginClick, onPostular, currentUser, onGoToIntra
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
   const { data: convocatoriasData, loading } = useApi<any[]>('/convocatorias');
   const { data: aboutData, loading: loadingAbout } = useApi<any>('/about');
   const { data: projectsData, loading: loadingProjects } = useApi<any[]>('/projects');
@@ -129,9 +130,10 @@ export function LandingPage({ onLoginClick, onPostular, currentUser, onGoToIntra
 
   const filteredProjects = publishedProjects.filter(project => {
     const matchesArea = selectedAreaId ? project.areaId === selectedAreaId : true;
+    const matchesStatus = filterStatus === 'all' ? true : project.status === filterStatus;
     const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       project.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesArea && matchesSearch;
+    return matchesArea && matchesSearch && matchesStatus;
   }).sort((a, b) => {
     const dateA = new Date(a.startDate).getTime();
     const dateB = new Date(b.startDate).getTime();
@@ -810,6 +812,22 @@ export function LandingPage({ onLoginClick, onPostular, currentUser, onGoToIntra
                   >
                     <option value="newest">Más recientes</option>
                     <option value="oldest">Más antiguos</option>
+                  </select>
+                </div>
+
+                {/* Status Filter */}
+                <div className="sm:w-48 relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <CheckCircle className="text-gray-400 w-5 h-5" />
+                  </div>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all appearance-none cursor-pointer text-gray-700"
+                  >
+                    <option value="all">Todos los estados</option>
+                    <option value="activo">Activos</option>
+                    <option value="finalizado">Finalizados</option>
                   </select>
                 </div>
               </div>

@@ -97,8 +97,8 @@ export function AreasPage({ onNavigate, onSelectArea }: AreasPageProps) {
                       {area.description}
                     </p>
 
-                    <div className={`inline-flex items-center gap-2 text-sm font-semibold ${colorScheme.text} group-hover:gap-3 transition-all`}>
-                      <span>Explorar área</span>
+                    <div className={`mt-4 w-full py-2.5 rounded-xl flex items-center justify-center gap-2 font-medium transition-all ${colorScheme.bg} ${colorScheme.text} group-hover:scale-[1.02]`}>
+                      <span>Ver detalles del área</span>
                       <ArrowRight className="w-4 h-4" />
                     </div>
                   </div>

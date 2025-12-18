@@ -27,7 +27,7 @@ export function AreaProjectsModal({ isOpen, onClose, areaName, projects, onViewA
                 onClick={onClose}
             />
 
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col animate-scale-in border border-emerald-100/50 overflow-hidden">
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] animate-scale-in border border-emerald-100/50 overflow-hidden flex flex-col">
 
                 {/* Custom Scrollbar Styles */}
                 <style>{`
@@ -67,7 +67,7 @@ export function AreaProjectsModal({ isOpen, onClose, areaName, projects, onViewA
                 </div>
 
                 {/* Content - Scrollable List with min-h-0 for flex fix */}
-                <div className="flex-1 overflow-y-auto min-h-0 p-4 bg-gray-50 custom-scrollbar">
+                <div className="overflow-y-auto min-h-0 flex-grow-0 p-4 bg-gray-50 custom-scrollbar" style={{ maxHeight: '320px' }}>
                     {projects.length > 0 ? (
                         <div className="space-y-3">
                             {projects.map((project) => (
