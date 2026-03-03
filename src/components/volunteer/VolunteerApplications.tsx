@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Clock, CheckCircle, XCircle, Calendar, Video, MapPin, FileText, Briefcase, Filter } from 'lucide-react';
-import { ApplicationProgressBar } from '../ApplicationProgressBar';
+import { ApplicationProgressBar } from '../common/ApplicationProgressBar';
 import { apiPut } from '../../hooks/useApi';
 
 interface VolunteerApplicationsProps {
@@ -18,7 +18,7 @@ export function VolunteerApplications({ applications, convocatorias, refetchAppl
         if (!app.userEmail || !app.id) {
           throw new Error('Application data incomplete - missing email or id');
         }
-        
+
         await apiPut(`/applications/${app.userEmail}/${app.id}`, {
           status: 'cancelled',
           cancelledDate: new Date().toISOString().split('T')[0],
@@ -68,8 +68,8 @@ export function VolunteerApplications({ applications, convocatorias, refetchAppl
     }
   };
 
-  const filteredApplications = selectedStatus === 'all' 
-    ? applications 
+  const filteredApplications = selectedStatus === 'all'
+    ? applications
     : applications.filter(app => app.status === selectedStatus);
 
   return (
@@ -260,7 +260,7 @@ export function VolunteerApplications({ applications, convocatorias, refetchAppl
             {selectedStatus === 'all' ? 'No tienes postulaciones' : 'No hay postulaciones con este estado'}
           </h3>
           <p className="text-gray-600 mb-6 max-w-md mx-auto leading-relaxed">
-            {selectedStatus === 'all' 
+            {selectedStatus === 'all'
               ? 'Aún no has postulado a ninguna convocatoria. Explora las oportunidades disponibles.'
               : 'Intenta cambiar el filtro para ver otras postulaciones.'}
           </p>

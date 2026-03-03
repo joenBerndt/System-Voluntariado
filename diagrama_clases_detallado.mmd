@@ -1,0 +1,191 @@
+classDiagram
+    %% Core Users and Authentication
+    class User {
+        +UUID id
+        +String email
+        +String name
+        +Enum role
+        +Enum status
+        +String phone
+        +String dni
+        +String profile_image
+        +String cv_url
+        +Timestamp created_at
+        
+        +login(email, password)
+        +register(userData)
+        +updateProfile(userId, data)
+        +uploadPhoto(userId, file)
+        +delete(userId)
+    }
+
+    class ActivityLog {
+        +UUID id
+        +String action
+        +String entity_type
+        +UUID entity_id
+        +String description
+        +UUID user_id
+        +JSON details
+        +Timestamp timestamp
+        
+        +create(logData)
+        +getAll()
+    }
+
+    %% Organization & Structure
+    class Area {
+        +UUID id
+        +String name
+        +String description
+        +String image_url
+        +Boolean published
+        
+        +create(areaData)
+        +update(areaId, data)
+        +delete(areaId)
+        +getAll()
+    }
+
+    class Project {
+        +UUID id
+        +String name
+        +String description
+        +UUID area_id
+        +Date start_date
+        +Date end_date
+        +Enum status
+        +String image_url
+        +String[] managers
+        +Boolean published
+        +String objectives
+        
+        +create(projectData)
+        +update(projectId, data)
+        +delete(projectId)
+        +getAll()
+        +getByArea(areaId)
+    }
+
+    %% Recruitment Process
+    class Convocatoria {
+        +UUID id
+        +String title
+        +String description
+        +String area
+        +Integer vacancies
+        +Date start_date
+        +Date end_date
+        +Enum status
+        +String[] requirements
+        +String[] benefits
+        +String image_url
+        
+        +create(convocatoriaData)
+        +update(convocatoriaId, data)
+        +delete(convocatoriaId)
+        +getAll()
+        +getOpen()
+    }
+
+    class Application {
+        +UUID id
+        +UUID convocatoria_id
+        +UUID user_id
+        +Enum status
+        +String motivation
+        +String cv_url
+        +Timestamp applied_at
+        
+        +create(applicationData)
+        +updateStatus(applicationId, status)
+        +getByUser(userId)
+        +getByConvocatoria(convocatoriaId)
+    }
+
+    class Interview {
+        +UUID id
+        +UUID application_id
+        +DateTime date
+        +Time time
+        +UUID interviewer_id
+        +Enum status
+        +String notes
+        +String meeting_link
+        
+        +schedule(interviewData)
+        +updateResult(interviewId, result)
+        +cancel(interviewId)
+    }
+
+    %% Operations & Training
+    class ProjectAssignment {
+        +UUID id
+        +UUID project_id
+        +UUID volunteer_id
+        +String role
+        +Enum status
+        +Timestamp assigned_at
+        
+        +assign(assignmentData)
+        +remove(assignmentData)
+        +getByVolunteer(volunteerId)
+        +getByProject(projectId)
+    }
+
+    class TrainingMaterial {
+        +UUID id
+        +String title
+        +String description
+        +String url
+        +Enum type
+        +UUID project_id
+        +Timestamp created_at
+        
+        +create(materialData)
+        +update(materialId, data)
+        +delete(materialId)
+        +getAll()
+    }
+
+    class MaterialProgress {
+        +UUID id
+        +UUID material_id
+        +UUID user_id
+        +Enum status
+        +Integer progress_percentage
+        +Timestamp last_accessed
+        
+        +updateProgress(userId, materialId, percentage)
+        +markComplete(userId, materialId)
+        +getByUser(userId)
+    }
+
+    class AboutContent {
+        +UUID id
+        +String mission
+        +String vision
+        +String history
+        +String[] values
+        
+        +get()
+        +update(data)
+    }
+
+    %% Relationships
+    User "1" -- "0..*" ActivityLog : generates
+    User "1" -- "0..*" Application : submits
+    User "1" -- "0..*" ProjectAssignment : assigned_to
+    User "1" -- "0..*" MaterialProgress : tracks_progress
+
+    Area "1" -- "0..*" Project : contains
+
+    Project "1" -- "0..*" ProjectAssignment : has_members
+    Project "1" -- "0..*" TrainingMaterial : includes_resources
+    Project "1" -- "0..*" Convocatoria : associated_with
+
+    Convocatoria "1" -- "0..*" Application : receives
+
+    Application "1" -- "0..1" Interview : schedules
+
+    TrainingMaterial "1" -- "0..*" MaterialProgress : tracked_in

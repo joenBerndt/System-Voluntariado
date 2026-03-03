@@ -852,9 +852,25 @@ app.delete('/make-server-f99e977c/applications/:email/:id', async (c) => {
   try {
     const email = c.req.param('email');
     const id = c.req.param('id');
+    console.log('DELETE /applications - Params:', { email, id });
 
-    const existing = await kv.get(`application:${email}:${id}`);
+    let existing = await kv.get(`application:${email}:${id}`);
+    let actualKey = `application:${email}:${id}`;
+
+    // Helper: find by ID if direct key fails (handles email mismatches)
     if (!existing) {
+      console.log('DELETE /applications - App not found by direct key, searching by ID...', id);
+      const all = await kv.getByPrefix('application:');
+      const found = all.find((a: any) => a.id === id);
+      if (found) {
+        console.log('DELETE /applications - Found by ID. Email was:', found.userEmail);
+        existing = found;
+        actualKey = `application:${found.userEmail}:${id}`;
+      }
+    }
+
+    if (!existing) {
+      console.log('DELETE /applications - Application NOT found.');
       return c.json({ success: false, error: 'Application not found' }, 404);
     }
 
@@ -867,7 +883,8 @@ app.delete('/make-server-f99e977c/applications/:email/:id', async (c) => {
       });
     }
 
-    await kv.del(`application:${email}:${id}`);
+    await kv.del(actualKey);
+    console.log('DELETE /applications - Use access success for key:', actualKey);
     return c.json({ success: true });
   } catch (error) {
     console.log('Error deleting application:', error);

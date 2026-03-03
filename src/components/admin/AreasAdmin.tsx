@@ -4,12 +4,31 @@ import { useApi, apiPost, apiPut, apiDelete } from '../../hooks/useApi';
 import { AreaModal } from './AreaModal';
 import { AreaProjectsModal } from './AreaProjectsModal';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { AdminTableSkeleton } from '../common/Skeletons';
+import { ConfirmationModal } from '../common/ConfirmationModal';
 
 export function AreasAdmin() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedArea, setSelectedArea] = useState<any>(null);
+
   const [viewingProjectsArea, setViewingProjectsArea] = useState<any>(null);
+
+  const [confirmation, setConfirmation] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmText?: string;
+    cancelText?: string;
+    variant?: 'danger' | 'default';
+    isLoading?: boolean;
+    onConfirm: () => Promise<void>;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: async () => { },
+  });
   const { data: areasData, loading, error, refetch } = useApi<any[]>('/areas');
 
   const { showSuccess, showError, showLoading, hideNotification } = useNotifications();
@@ -47,20 +66,29 @@ export function AreasAdmin() {
     }
   };
 
-  const handleDeleteArea = async (id: string) => {
-    if (window.confirm('¿Está seguro de eliminar esta área?')) {
-      const loadingId = showLoading('Eliminando área...', 'Por favor espere');
-      try {
-        await apiDelete(`/areas/${id}`);
-        hideNotification(loadingId);
-        refetch();
-        showSuccess('Área eliminada', 'El área ha sido eliminada exitosamente');
-      } catch (err) {
-        hideNotification(loadingId);
-        console.error('Error deleting area:', err);
-        showError('Error', 'No se pudo eliminar el área');
+  const handleDeleteArea = (id: string) => {
+    setConfirmation({
+      isOpen: true,
+      title: 'Eliminar Área',
+      description: '¿Está seguro de eliminar esta área?',
+      confirmText: 'Eliminar',
+      variant: 'danger',
+      onConfirm: async () => {
+        const loadingId = showLoading('Eliminando área...', 'Por favor espere');
+        try {
+          await apiDelete(`/areas/${id}`);
+          hideNotification(loadingId);
+          refetch();
+          showSuccess('Área eliminada', 'El área ha sido eliminada exitosamente');
+        } catch (err) {
+          hideNotification(loadingId);
+          console.error('Error deleting area:', err);
+          showError('Error', 'No se pudo eliminar el área');
+        } finally {
+          setConfirmation(prev => ({ ...prev, isOpen: false }));
+        }
       }
-    }
+    });
   };
 
   const handleSaveArea = async (areaData: any) => {
@@ -84,10 +112,19 @@ export function AreasAdmin() {
     }
   };
 
+
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Cargando áreas...</div>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center mb-6">
+          <div className="space-y-2">
+            <div className="h-8 w-48 bg-gray-200 rounded animate-pulse"></div>
+            <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+          <div className="h-10 w-40 bg-gray-200 rounded-lg animate-pulse"></div>
+        </div>
+        <AdminTableSkeleton rows={4} />
       </div>
     );
   }
@@ -279,6 +316,18 @@ export function AreasAdmin() {
           onClose={() => setViewingProjectsArea(null)}
         />
       )}
+
+      <ConfirmationModal
+        isOpen={confirmation.isOpen}
+        onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmation.onConfirm}
+        title={confirmation.title}
+        description={confirmation.description}
+        confirmText={confirmation.confirmText}
+        cancelText={confirmation.cancelText}
+        variant={confirmation.variant}
+        isLoading={confirmation.isLoading}
+      />
     </div>
   );
 }
