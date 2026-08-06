@@ -1,8 +1,8 @@
 
-const projectId = "sgsntaqyfpiwfawhzate";
+const projectId = "spodtzalxletrigrevtk";
 const functionName = "make-server-f99e977c";
 const baseUrl = `https://${projectId}.supabase.co/functions/v1/${functionName}`;
-const publicAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnc250YXF5ZnBpd2Zhd2h6YXRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwNjM5MDksImV4cCI6MjA3OTYzOTkwOX0.F4Xi9-oMLugOH143OsUR5mgNunYGJFVBBB6CHdZJCfk";
+const publicAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNwb2R0emFseGxldHJpZ3JldnRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwNzM1ODEsImV4cCI6MjA3OTY0OTU4MX0.O1nL25j36d1N-mO_y05z0F7QyN404jPZtJ3lJ2c";
 
 async function testEndpoint(path, name) {
     console.log(`Testing ${name} (${path})...`);
